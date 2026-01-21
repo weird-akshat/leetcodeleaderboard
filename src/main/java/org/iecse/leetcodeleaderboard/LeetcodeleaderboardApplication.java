@@ -13,4 +13,3 @@ public class LeetcodeleaderboardApplication {
 }
 
 //the purpose of this project is to build a leetcode ranking application for my juniors to promote leetcode culture inside the club.
-//going to be a smal
