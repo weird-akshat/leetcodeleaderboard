@@ -24,3 +24,11 @@ public class LeetcodeConfig {
 //   },
 //   "operationName": "userProfileUserQuestionProgressV2"
 // }
+
+// {
+//   "query": "query GetCountry($code: ID!) { country(code: $code) { name native capital emoji currency languages { code name } } }",
+//   "variables": {
+//     "code": "BR"
+//   },
+//   "operationName": "GetCountry"    // optional but recommended – matches your documentName
+// }
