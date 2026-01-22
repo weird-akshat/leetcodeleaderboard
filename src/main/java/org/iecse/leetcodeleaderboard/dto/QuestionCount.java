@@ -7,6 +7,6 @@ import lombok.ToString;
 @Data
 @ToString
 public class QuestionCount {
-    public int count;
-    public String difficulty; 
+    private int count;
+    private String difficulty;
 }

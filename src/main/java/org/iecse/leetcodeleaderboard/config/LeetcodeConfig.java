@@ -10,12 +10,11 @@ public class LeetcodeConfig {
     @Bean
     public HttpGraphQlClient leetcodeServiceClient(){
         WebClient webClient = WebClient.create("https://leetcode.com/graphql/");
-        HttpGraphQlClient graphQlClient = HttpGraphQlClient.create(webClient);
 
-        return graphQlClient;
+        return HttpGraphQlClient.create(webClient);
     }
 
-    
+
 }
 // {
 //   "query": "\n    query userProfileUserQuestionProgressV2($userSlug: String!) {\n  userProfileUserQuestionProgressV2(userSlug: $userSlug) {\n    numAcceptedQuestions {\n      count\n      difficulty\n\n  }\n}\n    ",

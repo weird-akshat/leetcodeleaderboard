@@ -9,6 +9,7 @@ import lombok.ToString;
 @Getter
 @ToString
 @Data
-public class ProgressData {
-    public List<QuestionCount> numAcceptedQuestions;
+public class UserData {
+    private String userName;
+    private List<QuestionCount> numAcceptedQuestions;
 }
