@@ -16,18 +16,3 @@ public class LeetcodeConfig {
 
 
 }
-// {
-//   "query": "\n    query userProfileUserQuestionProgressV2($userSlug: String!) {\n  userProfileUserQuestionProgressV2(userSlug: $userSlug) {\n    numAcceptedQuestions {\n      count\n      difficulty\n\n  }\n}\n    ",
-//   "variables": {
-//     "userSlug": "roonil03"
-//   },
-//   "operationName": "userProfileUserQuestionProgressV2"
-// }
-
-// {
-//   "query": "query GetCountry($code: ID!) { country(code: $code) { name native capital emoji currency languages { code name } } }",
-//   "variables": {
-//     "code": "BR"
-//   },
-//   "operationName": "GetCountry"    // optional but recommended – matches your documentName
-// }

@@ -6,7 +6,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -40,8 +39,7 @@ public class LeaderboardService {
 
     }
 
-    public Flux<UserData> getProfilesDetails(List<String> userIds)  {
-
+    public Flux<UserData> getProfiles(List<String> userIds)  {
         return Flux.fromIterable(userIds)
                 .delayElements(Duration.ofSeconds(4))
                 .flatMap(this::getIdData);
