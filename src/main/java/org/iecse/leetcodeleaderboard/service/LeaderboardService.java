@@ -3,14 +3,15 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.dto.UserData;
+import org.iecse.leetcodeleaderboard.dto.UserProfileDto;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
-import org.iecse.leetcodeleaderboard.entity.UserProfile;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
-import org.iecse.leetcodeleaderboard.repo.LeetcodeUserIdRepo;
-import org.iecse.leetcodeleaderboard.repo.UserProfileRepo;
+import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
+import org.iecse.leetcodeleaderboard.repo.*;
 import org.springframework.graphql.client.HttpGraphQlClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import java.time.Duration;
@@ -23,7 +24,11 @@ import java.time.Duration;
 public class LeaderboardService {
     private final HttpGraphQlClient leetcodeClient;
     private final LeetcodeUserIdRepo leetcodeUserIdRepo;
-    private final UserProfileRepo userProfileRepo;
+    private final CurrentUserProfileStateRepo currentUserProfileStateRepo;
+    private final DailyUserProfileStateRepo dailyRepo;
+    private final WeeklyUserProfileStateRepo weeklyRepo;
+    private final LeaderboardSyncService leaderboardSyncService;
+    private final MonthlyUserProfileStateRepo monthlyRepo;
 
 
 
@@ -56,10 +61,10 @@ public class LeaderboardService {
     }
     public void updateAllProfiles(){
         getAllProfilesDetails().flatMap(userData ->
-             userProfileRepo.findByLeetcodeId(userData.getUserName())
-                    .map(userProfile->UserDataMapper.toUserProfile(userData,userProfile))
+             currentUserProfileStateRepo.findByLeetcodeId(userData.getUserName())
+                    .map(userProfileState ->UserDataMapper.toUserProfile(userData, userProfileState))
                     .switchIfEmpty(Mono.defer(()->Mono.just(UserDataMapper.toUserProfile(userData))))
-                    .flatMap(userProfileRepo::save)
+                    .flatMap(currentUserProfileStateRepo::save)
                      .onErrorResume(e -> {
                          log.error("Error updating user {}: {}", userData.getUserName(), e.getMessage());
                          return Mono.empty();
@@ -70,6 +75,42 @@ public class LeaderboardService {
     public Flux<LeetcodeUserId> fetchAllLeetcodeIdsFromDatabase(){
         return leetcodeUserIdRepo.findAll();
     }
+
+    public Flux<UserProfileDto> fetchLeaderboard(int easyMultiplier,int mediumMultiplier, int hardMultiplier){
+        return currentUserProfileStateRepo.findTopRanked(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+    }
+
+    public Flux<UserProfileDto> fetchDailyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
+        log.info("Finding: Daily Leaderboard");
+
+        return dailyRepo.getDailyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+    }
+
+    public Flux<UserProfileDto> fetchWeeklyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
+        return weeklyRepo.getWeeklyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+    }
+
+    public Flux<UserProfileDto> fetchMonthlyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
+        return monthlyRepo.getMonthlyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+    }
+
+
+
+    @Scheduled(cron = "0 0 0 * * *")
+    public void scheduledDailySync() {
+        leaderboardSyncService.dailySync().block();
+    }
+
+    @Scheduled(cron = "0 0 0 * * SUN")
+    public void scheduledWeeklySync() {
+        leaderboardSyncService.weeklySync().block();
+    }
+
+    @Scheduled(cron = "0 0 0 1 * *")
+    public void scheduledMonthlySync() {
+        leaderboardSyncService.monthlySync().block();
+    }
+
 
 
 

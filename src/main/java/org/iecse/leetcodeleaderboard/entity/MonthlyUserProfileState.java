@@ -1,17 +1,14 @@
 package org.iecse.leetcodeleaderboard.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import lombok.Builder;
 import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
-@Table(name="user_profile")
+@Table(name="monthly_user_profile_state")
 @Data
 @Builder
-public class UserProfile {
+public class MonthlyUserProfileState {
     @Id
     private Long id;
     private String leetcodeId;

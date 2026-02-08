@@ -2,10 +2,10 @@ package org.iecse.leetcodeleaderboard.mapper;
 
 import org.iecse.leetcodeleaderboard.dto.QuestionCount;
 import org.iecse.leetcodeleaderboard.dto.UserData;
-import org.iecse.leetcodeleaderboard.entity.UserProfile;
+import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 
 public class UserDataMapper {
-    public static UserProfile toUserProfile(UserData userData){
+    public static CurrentUserProfileState toUserProfile(UserData userData){
         int easy=0;
         int medium=0;
         int hard=0;
@@ -20,9 +20,9 @@ public class UserDataMapper {
                 hard = questionCount.getCount();
             }
         }
-        return UserProfile.builder().leetcodeId(userData.getUserName()).easy(easy).medium(medium).hard(hard) .build();
+        return CurrentUserProfileState.builder().leetcodeId(userData.getUserName()).easy(easy).medium(medium).hard(hard) .build();
     }
-    public static UserProfile toUserProfile(UserData userData,UserProfile userProfile){
+    public static CurrentUserProfileState toUserProfile(UserData userData, CurrentUserProfileState currentUserProfileState){
         int easy=0;
         int medium=0;
         int hard=0;
@@ -37,11 +37,11 @@ public class UserDataMapper {
                 hard = questionCount.getCount();
             }
         }
-        userProfile.setEasy(easy);
-        userProfile.setMedium(medium);
-        userProfile.setHard(hard);
+        currentUserProfileState.setEasy(easy);
+        currentUserProfileState.setMedium(medium);
+        currentUserProfileState.setHard(hard);
 
-        return userProfile;
+        return currentUserProfileState;
 
     }
 }
