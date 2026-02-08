@@ -9,6 +9,7 @@ import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.repo.LeetcodeUserIdRepo;
 import org.iecse.leetcodeleaderboard.repo.UserProfileRepo;
 import org.springframework.graphql.client.HttpGraphQlClient;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -48,12 +49,21 @@ public class LeaderboardService {
         return fetchAllLeetcodeIdsFromDatabase().delayElements(Duration.ofSeconds(5)).flatMap(item-> this.getIdData(item.getUserId()));
     }
 
+    @Scheduled(cron = "@hourly")
+    public void scheduledUpdate() {
+        log.info("Starting scheduled profile update...");
+        updateAllProfiles();
+    }
     public void updateAllProfiles(){
         getAllProfilesDetails().flatMap(userData ->
              userProfileRepo.findByLeetcodeId(userData.getUserName())
                     .map(userProfile->UserDataMapper.toUserProfile(userData,userProfile))
                     .switchIfEmpty(Mono.defer(()->Mono.just(UserDataMapper.toUserProfile(userData))))
                     .flatMap(userProfileRepo::save)
+                     .onErrorResume(e -> {
+                         log.error("Error updating user {}: {}", userData.getUserName(), e.getMessage());
+                         return Mono.empty();
+                     })
 
         ).subscribe();
     }
