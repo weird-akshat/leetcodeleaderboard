@@ -1,7 +1,9 @@
 package org.iecse.leetcodeleaderboard.repo;
 
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import org.springframework.stereotype.Repository;
 
-public interface LeetcodeUserIdRepo extends JpaRepository<LeetcodeUserId, String> {
+@Repository
+public interface LeetcodeUserIdRepo extends ReactiveCrudRepository<LeetcodeUserId, String> {
 }

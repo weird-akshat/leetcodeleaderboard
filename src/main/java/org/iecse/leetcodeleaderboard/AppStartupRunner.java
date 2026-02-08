@@ -1,6 +1,7 @@
 package org.iecse.leetcodeleaderboard;
 
 import org.iecse.leetcodeleaderboard.dto.UserData;
+import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
 import org.iecse.leetcodeleaderboard.service.LeaderboardService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -26,4 +27,5 @@ public class AppStartupRunner implements CommandLineRunner {
                 .doOnError(error -> System.err.println("Error: " + error.getMessage()))
                 .blockLast();
         }
+
 }

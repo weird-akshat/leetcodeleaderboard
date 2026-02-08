@@ -1,6 +1,7 @@
 package org.iecse.leetcodeleaderboard.service;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.apache.catalina.User;
 import org.iecse.leetcodeleaderboard.dto.UserData;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
 import org.iecse.leetcodeleaderboard.repo.LeetcodeUserIdRepo;
@@ -43,16 +44,16 @@ public class LeaderboardService {
 
     }
 
-    public Flux<UserData> getProfiles(List<String> userIds)  {
-        return Flux.fromIterable(userIds)
-                .delayElements(Duration.ofSeconds(4))
-                .flatMap(this::getIdData);
+    public Flux<UserData> getProfiles(Flux<LeetcodeUserId> userIds)  {
+       return userIds.delayElements(Duration.ofSeconds(5)).flatMap(item->{
+           return this.getIdData(item.getUserId());
+       });
     }
 
     public Flux<UserData> getProfilesFromDatabase(){
-        List<LeetcodeUserId> leetcodeUserIds = leetcodeUserIdRepo.findAll();
+        Flux<LeetcodeUserId> leetcodeUserIds = leetcodeUserIdRepo.findAll();
 
-        return getProfiles(leetcodeUserIds.stream().map(LeetcodeUserId::getUserId).toList());
+        return this.getProfiles(leetcodeUserIds);
     }
-    
+
 }
