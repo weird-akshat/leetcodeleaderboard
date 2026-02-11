@@ -17,3 +17,4 @@ public class LeetcodeleaderboardApplication {
 //the purpose of this project is to build a leetcode ranking application for my juniors to promote leetcode culture inside the club.
 //i have built a method to get the leetcode data of a single user
 //now we need to build something that takes a list and then gets the data from leetcode
+//i have the endpoints, and the cron job, now we just need to add security and rate limiting
