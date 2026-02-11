@@ -8,6 +8,6 @@ import reactor.core.publisher.Mono;
 
 public interface CurrentUserProfileStateRepo extends ReactiveCrudRepository<CurrentUserProfileState,Long> {
     Mono<CurrentUserProfileState> findByLeetcodeId(String leetcodeId);
-    @Query("SELECT * FROM user_profile " + "ORDER BY (easy * :m1 + medium * :m2 + hard * :m3) DESC")
+    @Query("SELECT * FROM current_user_profile_state " + "ORDER BY (easy * :m1 + medium * :m2 + hard * :m3) DESC")
     Flux<CurrentUserProfileState> findTopRanked(double m1, double m2, double m3);
 }
