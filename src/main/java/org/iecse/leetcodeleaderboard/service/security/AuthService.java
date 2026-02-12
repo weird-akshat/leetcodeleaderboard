@@ -1,4 +1,4 @@
-package org.iecse.leetcodeleaderboard.service;
+package org.iecse.leetcodeleaderboard.service.security;
 
 import lombok.RequiredArgsConstructor;
 import org.iecse.leetcodeleaderboard.entity.AppUser;

@@ -7,7 +7,7 @@ import org.iecse.leetcodeleaderboard.dto.security.JwtRequest;
 import org.iecse.leetcodeleaderboard.dto.security.JwtResponse;
 import org.iecse.leetcodeleaderboard.dto.security.SignupRequest;
 import org.iecse.leetcodeleaderboard.security.JwtHelper;
-import org.iecse.leetcodeleaderboard.service.AuthService;
+import org.iecse.leetcodeleaderboard.service.security.AuthService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
