@@ -2,6 +2,7 @@ package org.iecse.leetcodeleaderboard.security.config;
 
 import lombok.RequiredArgsConstructor;
 
+
 import org.iecse.leetcodeleaderboard.security.jwt.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,14 +31,16 @@ public class SecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
-                .securityContextRepository(NoOpServerSecurityContextRepository.getInstance()) // Stateless
+                .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .authenticationManager(authManager)
-                .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/auth/**").permitAll() // Open Signup/Login
-                        .pathMatchers(HttpMethod.OPTIONS).permitAll()
-                        .anyExchange().authenticated() // Secure everything else
-                )
+
+//                .addFilterAt(rateLimitFilter, SecurityWebFiltersOrder.FIRST)
                 .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+                .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers("/auth/**").permitAll()
+                        .pathMatchers(HttpMethod.OPTIONS).permitAll()
+                        .anyExchange().authenticated()
+                )
                 .build();
     }
 

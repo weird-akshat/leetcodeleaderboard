@@ -16,7 +16,6 @@ public class AppStartupRunner implements CommandLineRunner {
     private final MonthlyUserProfileStateRepo dailyUserProfileStateRepo;
     @Override
     public void run(String... args) throws Exception {
-        leaderboardService.scheduledMonthlySync();
         currentUserProfileStateRepo.findTopRanked(1,1.25,1.5).doOnNext(
                 userProfile -> System.out.println(userProfile)
         ).subscribe();
