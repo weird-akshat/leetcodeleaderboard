@@ -9,7 +9,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 @Repository
 public interface DailyUserProfileStateRepo extends ReactiveCrudRepository<DailyUserProfileState,Long> {
-    @Query("SELECT c.leetcode_id, " +
+    @Query(value = "SELECT c.leetcode_id, " +
+            "c.last_updated, " +
+            "c.is_active, " +
             "(c.easy - COALESCE(d.easy, 0)) as easy, " +
             "(c.medium - COALESCE(d.medium, 0)) as medium, " +
             "(c.hard - COALESCE(d.hard, 0)) as hard, " +
@@ -18,6 +20,7 @@ public interface DailyUserProfileStateRepo extends ReactiveCrudRepository<DailyU
             " (c.hard - COALESCE(d.hard, 0)) * :m3) as total_score " +
             "FROM current_user_profile_state c " +
             "INNER JOIN daily_user_profile_state d ON c.leetcode_id = d.leetcode_id " +
+             "WHERE c.is_active = true " +
             "ORDER BY total_score DESC")
     Flux<DailyUserProfileState> getDailyGainsLeaderboard(int m1, int m2, int m3);
 

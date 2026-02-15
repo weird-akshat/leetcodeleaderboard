@@ -10,6 +10,8 @@ import reactor.core.publisher.Mono;
 @Repository
 public interface MonthlyUserProfileStateRepo extends ReactiveCrudRepository<MonthlyUserProfileState,Long> {
     @Query("SELECT c.leetcode_id, " +
+            "c.last_updated, " +
+            "c.is_active, " +
             "(c.easy - COALESCE(m.easy, 0)) as easy, " +
             "(c.medium - COALESCE(m.medium, 0)) as medium, " +
             "(c.hard - COALESCE(m.hard, 0)) as hard, " +
@@ -18,6 +20,7 @@ public interface MonthlyUserProfileStateRepo extends ReactiveCrudRepository<Mont
             " (c.hard - COALESCE(m.hard, 0)) * :m3) as total_score " +
             "FROM current_user_profile_state c " +
             "INNER JOIN monthly_user_profile_state m ON c.leetcode_id = m.leetcode_id " +
+            "WHERE c.is_active = true " +
             "ORDER BY total_score DESC")
     Flux<MonthlyUserProfileState> getMonthlyGainsLeaderboard(int m1, int m2, int m3);
 

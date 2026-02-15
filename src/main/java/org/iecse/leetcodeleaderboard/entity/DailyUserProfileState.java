@@ -7,6 +7,8 @@ import lombok.Data;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.time.LocalDateTime;
+
 @Table(name="daily_user_profile_state")
 @Data
 @Builder
@@ -17,5 +19,7 @@ public class DailyUserProfileState {
     private int easy;
     private int medium;
     private int hard;
+    private LocalDateTime updatedAt;
+    private boolean isActive;
 
 }
