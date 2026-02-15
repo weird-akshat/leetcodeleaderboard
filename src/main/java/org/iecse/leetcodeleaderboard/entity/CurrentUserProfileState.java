@@ -17,7 +17,7 @@ public class CurrentUserProfileState {
     private int easy;
     private int medium;
     private int hard;
-    private LocalDateTime updatedAt;
+    private LocalDateTime lastUpdated;
     private boolean isActive;
 
 }

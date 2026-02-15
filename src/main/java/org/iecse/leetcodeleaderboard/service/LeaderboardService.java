@@ -17,6 +17,8 @@ import reactor.core.publisher.Mono;
 import tools.jackson.databind.JsonNode;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 
 @Data
@@ -50,6 +52,10 @@ public class LeaderboardService {
             .variable("userSlug", username)
             .retrieve("userProfileUserQuestionProgressV2")
             .toEntity(UserData.class).map(userData->{userData.setUserName(username); return userData;});
+
+
+
+
     }
     public Mono<String> getUserAboutMe(String username) {
         String query = """
@@ -84,15 +90,35 @@ public class LeaderboardService {
         updateAllProfiles();
     }
     public void updateAllProfiles(){
-        getAllProfilesDetails().flatMap(userData ->
-             currentUserProfileStateRepo.findByLeetcodeId(userData.getUserName())
-                    .map(userProfileState ->UserDataMapper.toUserProfile(userData, userProfileState))
-                    .switchIfEmpty(Mono.defer(()->Mono.just(UserDataMapper.toUserProfile(userData))))
-                    .flatMap(currentUserProfileStateRepo::save)
-                     .onErrorResume(e -> {
-                         log.error("Error updating user {}: {}", userData.getUserName(), e.getMessage());
-                         return Mono.empty();
-                     })
+        getAllProfilesDetails().flatMap(userData ->{
+            if (!userData.getNumAcceptedQuestions().isEmpty()) {
+
+                return currentUserProfileStateRepo.findByLeetcodeId(userData.getUserName())
+                        .map(userProfileState -> {
+                            log.info("Updating leetcodeId: {}", userProfileState.getLeetcodeId());
+                            return UserDataMapper.toUserProfile(userData, userProfileState);
+                        })
+                        .switchIfEmpty(Mono.defer(() -> Mono.just(UserDataMapper.toUserProfile(userData))))
+                        .flatMap(currentUserProfileStateRepo::save)
+                        .onErrorResume(e -> {
+                            log.error("Error updating user {}: {}", userData.getUserName(), e.getMessage());
+
+                            return Mono.empty();
+                        });
+            }
+            else{
+
+                return currentUserProfileStateRepo.findByLeetcodeId(userData.getUserName()).flatMap(currentUserProfileState->{
+                    if (ChronoUnit.DAYS.between(currentUserProfileState.getLastUpdated(),LocalDateTime.now())>=2){
+                        currentUserProfileState.setActive(false);
+                        return currentUserProfileStateRepo.save(currentUserProfileState);
+                    }
+                    else{
+                        return Mono.just(currentUserProfileState);
+                    }
+                });
+            }
+        }
 
         ).subscribe();
     }

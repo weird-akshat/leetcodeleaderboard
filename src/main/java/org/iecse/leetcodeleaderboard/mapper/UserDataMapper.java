@@ -4,6 +4,8 @@ import org.iecse.leetcodeleaderboard.dto.QuestionCount;
 import org.iecse.leetcodeleaderboard.dto.UserData;
 import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 
+import java.time.LocalDateTime;
+
 public class UserDataMapper {
     public static CurrentUserProfileState toUserProfile(UserData userData){
         int easy=0;
@@ -20,7 +22,10 @@ public class UserDataMapper {
                 hard = questionCount.getCount();
             }
         }
-        return CurrentUserProfileState.builder().leetcodeId(userData.getUserName()).easy(easy).medium(medium).hard(hard) .build();
+        return CurrentUserProfileState.builder().leetcodeId(userData.getUserName()).easy(easy).medium(medium).hard(hard)
+                .isActive(true)
+                .lastUpdated(LocalDateTime.now())
+                .build();
     }
     public static CurrentUserProfileState toUserProfile(UserData userData, CurrentUserProfileState currentUserProfileState){
         int easy=0;
@@ -40,6 +45,8 @@ public class UserDataMapper {
         currentUserProfileState.setEasy(easy);
         currentUserProfileState.setMedium(medium);
         currentUserProfileState.setHard(hard);
+        currentUserProfileState.setActive(true);
+        currentUserProfileState.setLastUpdated(LocalDateTime.now());
 
         return currentUserProfileState;
 
