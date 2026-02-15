@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+
 import java.time.Duration;
 
 
@@ -48,6 +50,28 @@ public class LeaderboardService {
             .variable("userSlug", username)
             .retrieve("userProfileUserQuestionProgressV2")
             .toEntity(UserData.class).map(userData->{userData.setUserName(username); return userData;});
+    }
+    public Mono<String> getUserAboutMe(String username) {
+        String query = """
+        query userPublicProfile($username: String!) {
+          matchedUser(username: $username) {
+            profile {
+              aboutMe
+            }
+          }
+        }
+        """;
+
+        return leetcodeClient.document(query)
+                .variable("username", username)
+                .retrieve("matchedUser")
+                .toEntity(JsonNode.class)
+                .map(node -> {
+                    return node.path("profile").path("aboutMe").asText();
+                });
+    }
+    public Mono<Boolean> verifyLeetcodeId(String leetcodeId, String email){
+        return this.getUserAboutMe(leetcodeId).map(aboutMe->aboutMe.toLowerCase().contains("hello "+email.substring(0,email.indexOf('@'))));
     }
 
     public Flux<UserData> getAllProfilesDetails()  {

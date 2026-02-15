@@ -31,7 +31,7 @@ public class AuthController {
                 .map(user -> new UserResponse(
                         user.getId(),
                         user.getUsername(),
-                        user.getLeetcodeId(), // <--- YOU WERE MISSING THIS
+                        user.getLeetcodeId(),
                         user.getRole()
                 ));
     }
@@ -41,10 +41,8 @@ public class AuthController {
         return authenticationManager.authenticate(
                         new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
                 )
-                // 1. Authentication successful, now fetch full user details to get leetcodeId
                 .flatMap(auth -> userService.findByUsername(request.getUsername()))
                 .map(user -> {
-                    // 2. Generate token with the extra field
                     String token = tokenProvider.createToken(
                             user.getUsername(),
                             user.getRole(),

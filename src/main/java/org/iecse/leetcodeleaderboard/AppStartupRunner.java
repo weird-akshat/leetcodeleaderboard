@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.repo.CurrentUserProfileStateRepo;
 import org.iecse.leetcodeleaderboard.repo.MonthlyUserProfileStateRepo;
 import org.iecse.leetcodeleaderboard.service.LeaderboardService;
+import org.iecse.leetcodeleaderboard.service.MailService;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 @Slf4j
@@ -14,13 +15,19 @@ public class AppStartupRunner implements CommandLineRunner {
     private final LeaderboardService leaderboardService;
     private final CurrentUserProfileStateRepo currentUserProfileStateRepo;
     private final MonthlyUserProfileStateRepo dailyUserProfileStateRepo;
+    private final MailService mailService;
     @Override
     public void run(String... args) throws Exception {
-        currentUserProfileStateRepo.findTopRanked(1,1.25,1.5).doOnNext(
-                userProfile -> System.out.println(userProfile)
-        ).subscribe();
+//        currentUserProfileStateRepo.findTopRanked(1,1.25,1.5).doOnNext(
+//                userProfile -> System.out.println(userProfile)
+//        ).subscribe();
 
+//        leaderboardService.verifyLeetcodeId("its_akshat","thatweirdakshat@gmail.com").doOnNext(System.out::println).subscribe();
+//        leaderboardService.getUserAboutMe("adityasinha347").doOnNext(System.out::println).subscribe() ;
+         mailService.sendPlainText("thatweirdakshat@gmail.com","Hey"," well");
          leaderboardService.updateAllProfiles();
+
+
     }
 
 }
