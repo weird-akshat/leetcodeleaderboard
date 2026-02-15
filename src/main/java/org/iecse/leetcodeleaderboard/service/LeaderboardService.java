@@ -8,10 +8,15 @@ import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
 import org.iecse.leetcodeleaderboard.repo.*;
+import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
 import org.springframework.graphql.client.HttpGraphQlClient;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.JsonNode;
@@ -33,6 +38,7 @@ public class LeaderboardService {
     private final WeeklyUserProfileStateRepo weeklyRepo;
     private final LeaderboardSyncService leaderboardSyncService;
     private final MonthlyUserProfileStateRepo monthlyRepo;
+    private final AppUserRepository appUserRepo;
 
 
 
@@ -125,23 +131,45 @@ public class LeaderboardService {
     public Flux<LeetcodeUserId> fetchAllLeetcodeIdsFromDatabase(){
         return leetcodeUserIdRepo.findAll();
     }
+    public Mono<Boolean> isLeetcodeIdActive(){
+        return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
+                .map(auth->auth.getName())
+                .flatMap(username->appUserRepo.findByUsername(username))
+                .map(appUser -> appUser.getLeetcodeId())
+                .flatMap(leetocodeId->currentUserProfileStateRepo.findByLeetcodeId(leetocodeId))
+                        .map(currentUserProfileState -> currentUserProfileState.isActive())
+                .flatMap(bool->Mono.just(bool)
+                );
 
+    }
     public Flux<UserProfileDto> fetchLeaderboard(int easyMultiplier,int mediumMultiplier, int hardMultiplier){
-        return currentUserProfileStateRepo.findTopRanked(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+        return isLeetcodeIdActive()
+                .filter(isActive -> isActive)
+                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .flatMapMany(isActive -> currentUserProfileStateRepo.findTopRanked(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
     public Flux<UserProfileDto> fetchDailyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
         log.info("Finding: Daily Leaderboard");
 
-        return dailyRepo.getDailyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+        return isLeetcodeIdActive()
+                .filter(isActive -> isActive)
+                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .flatMapMany(isActive ->dailyRepo.getDailyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
     public Flux<UserProfileDto> fetchWeeklyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
-        return weeklyRepo.getWeeklyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+        return isLeetcodeIdActive()
+                .filter(isActive -> isActive)
+                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .flatMapMany(isActive ->weeklyRepo.getWeeklyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
     public Flux<UserProfileDto> fetchMonthlyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
-        return monthlyRepo.getMonthlyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto);
+        return isLeetcodeIdActive()
+                .filter(isActive -> isActive)
+                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .flatMapMany(isActive ->monthlyRepo.getMonthlyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
 
