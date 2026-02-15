@@ -1,5 +1,6 @@
 package org.iecse.leetcodeleaderboard.service;
 
+import org.iecse.leetcodeleaderboard.security.dto.PendingRegistration;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
@@ -12,19 +13,17 @@ public class OtpService {
     public OtpService(CacheManager cacheManager) {
         this.cacheManager = cacheManager;
     }
-
-    public void saveOtp(String key, String otp) {
+    public void savePendingRegistration(String email, PendingRegistration data) {
         Cache cache = cacheManager.getCache("otpCache");
         if (cache != null) {
-            cache.put(key, otp);
+            cache.put(email, data);
         }
     }
 
-    public String getOtp(String key) {
+    public PendingRegistration getPendingRegistration(String email) {
         Cache cache = cacheManager.getCache("otpCache");
-        return (cache != null && cache.get(key) != null) ? cache.get(key, String.class) : null;
+        return (cache != null) ? cache.get(email, PendingRegistration.class) : null;
     }
-
     public void clearOtp(String key) {
         Cache cache = cacheManager.getCache("otpCache");
         if (cache != null) {

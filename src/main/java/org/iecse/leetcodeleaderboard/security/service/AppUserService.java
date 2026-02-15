@@ -3,30 +3,49 @@ package org.iecse.leetcodeleaderboard.security.service;
 
 import lombok.RequiredArgsConstructor;
 
+import org.iecse.leetcodeleaderboard.security.dto.OtpRequest;
+import org.iecse.leetcodeleaderboard.security.dto.PendingRegistration;
 import org.iecse.leetcodeleaderboard.security.dto.SignupRequest;
 import org.iecse.leetcodeleaderboard.security.entity.AppUser;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
 import org.iecse.leetcodeleaderboard.service.LeaderboardService;
+import org.iecse.leetcodeleaderboard.service.MailService;
+import org.iecse.leetcodeleaderboard.service.OtpService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
+
+import java.security.SecureRandom;
+
 @Service
 @RequiredArgsConstructor
 public class AppUserService {
     private final LeaderboardService leaderboardService;
     private final AppUserRepository repository;
     private final PasswordEncoder passwordEncoder;
+    private final SecureRandom secureRandom;
+    private final OtpService otpService;
+    private final MailService mailService;
     public Mono<AppUser> findByUsername(String username) {
         return repository.findByUsername(username);
     }
-
+    public Mono<AppUser> saveUser(OtpRequest otpRequest){
+        PendingRegistration pendingRegistration = otpService.getPendingRegistration(otpRequest.getUsername());
+        if (pendingRegistration.getOtp().equals(otpRequest.getOtp())){
+            otpService.clearOtp(otpRequest.getUsername());
+            return repository.save(pendingRegistration.getAppUser());
+        }
+        else{
+            throw new RuntimeException("OTP Request didn't match");
+        }
+    }
 
     public Mono<AppUser> registerUser(SignupRequest request) {
 
         return repository.findByUsername(request.getUsername())
                 .flatMap(existing -> Mono.<AppUser>error(new RuntimeException("User already exists")))
-                .switchIfEmpty(Mono.defer(() -> {
-                    return leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername()).flatMap(
+                .switchIfEmpty(Mono.defer(() ->
+                     leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername()).flatMap(
                             verified-> {
                                 if (verified){
                                     AppUser newUser = new AppUser();
@@ -35,15 +54,20 @@ public class AppUserService {
                                     newUser.setLeetcodeId(request.getLeetcodeId());
                                     newUser.setRole("ROLE_USER");
                                     newUser.setActive(true);
-                                    return repository.save(newUser);
+                                    int otpNum = secureRandom.nextInt(100000);
+                                    String otp = String.format("%06d",otpNum);
+                                    PendingRegistration pendingRegistration = new PendingRegistration(newUser,otp);
+                                    otpService.savePendingRegistration(request.getUsername(), pendingRegistration);
+                                    mailService.sendPlainText(request.getUsername(), "LeetLead OTP","Your OTP is: "+ otp);
+                                    return Mono.just(newUser);
                                 }
                                 else{
                                     throw new RuntimeException("LeetcodeId not verified");
                                 }
                             }
-                    );
+                    )
 
 
-                }));
+                ));
     }
 }

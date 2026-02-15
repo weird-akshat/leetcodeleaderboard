@@ -7,6 +7,7 @@ import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.security.SecureRandom;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
@@ -20,5 +21,9 @@ public class CacheConfig {
                 .expireAfterWrite(5, TimeUnit.MINUTES)
                 .maximumSize(10000));
         return cacheManager;
+    }
+    @Bean
+    public SecureRandom secureRandom(){
+        return new SecureRandom();
     }
 }

@@ -10,7 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table("app_users") // Maps to table 'app_users'@Data
+@Table("app_users")
 
 public class AppUser {
     @Id

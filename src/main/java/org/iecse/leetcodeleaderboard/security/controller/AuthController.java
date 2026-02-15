@@ -1,9 +1,6 @@
 package org.iecse.leetcodeleaderboard.security.controller;
 import lombok.RequiredArgsConstructor;
-import org.iecse.leetcodeleaderboard.security.dto.LoginRequest;
-import org.iecse.leetcodeleaderboard.security.dto.LoginResponse;
-import org.iecse.leetcodeleaderboard.security.dto.SignupRequest;
-import org.iecse.leetcodeleaderboard.security.dto.UserResponse;
+import org.iecse.leetcodeleaderboard.security.dto.*;
 import org.iecse.leetcodeleaderboard.security.jwt.JwtTokenProvider;
 import org.iecse.leetcodeleaderboard.security.service.AppUserService;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +10,8 @@ import org.springframework.security.authentication.ReactiveAuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+
+import java.net.http.HttpResponse;
 
 @RestController
 @RequestMapping("/auth")
@@ -25,15 +24,16 @@ public class AuthController {
 
 
     @PostMapping("/signup")
-    @ResponseStatus(HttpStatus.CREATED)
-    public Mono<UserResponse> signup(@RequestBody SignupRequest request) {
+
+    public Mono<ResponseEntity<Boolean>> signup(@RequestBody SignupRequest request) {
         return userService.registerUser(request)
-                .map(user -> new UserResponse(
-                        user.getId(),
-                        user.getUsername(),
-                        user.getLeetcodeId(),
-                        user.getRole()
-                ));
+                .map(appUser -> new ResponseEntity<>(HttpStatus.OK));
+    }
+    @PostMapping("/signup/otp")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<ResponseEntity<Boolean>> saveUser(@RequestBody OtpRequest request) {
+        return userService.saveUser(request)
+                .map(appUser -> new ResponseEntity<>(HttpStatus.OK));
     }
 
     @PostMapping("/login")
