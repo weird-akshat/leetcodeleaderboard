@@ -1,5 +1,6 @@
 package org.iecse.leetcodeleaderboard.security.controller;
 import lombok.RequiredArgsConstructor;
+import org.iecse.leetcodeleaderboard.dto.UserData;
 import org.iecse.leetcodeleaderboard.security.dto.*;
 import org.iecse.leetcodeleaderboard.security.jwt.JwtTokenProvider;
 import org.iecse.leetcodeleaderboard.security.service.AppUserService;
@@ -34,6 +35,19 @@ public class AuthController {
     public Mono<ResponseEntity<Boolean>> saveUser(@RequestBody OtpRequest request) {
         return userService.saveUser(request)
                 .map(appUser -> new ResponseEntity<>(HttpStatus.OK));
+    }
+
+    @PutMapping("/update/password")
+    public Mono<ResponseEntity<UserResponse>>updatePassword(@RequestBody UpdatePasswordRequest updatePasswordRequest){
+        return authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(updatePasswordRequest.getUsername(),updatePasswordRequest.getPassword()))
+                .flatMap(auth->userService.updatePassword(updatePasswordRequest)).map(
+                        appUser -> new UserResponse(
+                                appUser.getId(),
+                                appUser.getUsername(),
+                                appUser.getLeetcodeId(),
+                                appUser.getRole()
+                        )
+                ).map(userResponse -> new ResponseEntity<>(userResponse, HttpStatus.OK));
     }
 
     @PostMapping("/login")

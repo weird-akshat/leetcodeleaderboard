@@ -32,7 +32,7 @@ public class JwtTokenProvider {
     public String createToken(String username, String role, String leetcodeId) {
         Claims claims = Jwts.claims().setSubject(username);
         claims.put("role", role);
-        claims.put("leetcodeId", leetcodeId); // <--- Add to payload
+        claims.put("leetcodeId", leetcodeId);
 
         Date now = new Date();
         Date validity = new Date(now.getTime() + jwtProperties.getValidityInMs());

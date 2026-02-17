@@ -3,14 +3,17 @@ package org.iecse.leetcodeleaderboard.security.service;
 
 import lombok.RequiredArgsConstructor;
 
+
 import org.iecse.leetcodeleaderboard.security.dto.OtpRequest;
 import org.iecse.leetcodeleaderboard.security.dto.PendingRegistration;
 import org.iecse.leetcodeleaderboard.security.dto.SignupRequest;
+import org.iecse.leetcodeleaderboard.security.dto.UpdatePasswordRequest;
 import org.iecse.leetcodeleaderboard.security.entity.AppUser;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
 import org.iecse.leetcodeleaderboard.service.LeaderboardService;
 import org.iecse.leetcodeleaderboard.service.MailService;
 import org.iecse.leetcodeleaderboard.service.OtpService;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -22,6 +25,7 @@ import java.security.SecureRandom;
 public class AppUserService {
     private final LeaderboardService leaderboardService;
     private final AppUserRepository repository;
+
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom secureRandom;
     private final OtpService otpService;
@@ -38,6 +42,13 @@ public class AppUserService {
         else{
             throw new RuntimeException("OTP Request didn't match");
         }
+    }
+
+    public Mono<AppUser> updatePassword(UpdatePasswordRequest updatePasswordRequest){
+        return repository.findByUsername(updatePasswordRequest.getUsername()).map(appUser -> {
+            appUser.setPassword(passwordEncoder.encode(updatePasswordRequest.getNewPassword()));
+            return appUser;
+        }).flatMap(repository::save);
     }
 
     public Mono<AppUser> registerUser(SignupRequest request) {

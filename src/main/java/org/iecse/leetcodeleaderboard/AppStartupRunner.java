@@ -25,7 +25,7 @@ public class AppStartupRunner implements CommandLineRunner {
 //        leaderboardService.verifyLeetcodeId("its_akshat","thatweirdakshat@gmail.com").doOnNext(System.out::println).subscribe();
 //        leaderboardService.getUserAboutMe("adityasinha347").doOnNext(System.out::println).subscribe() ;
 //         mailService.sendPlainText("thatweirdakshat@gmail.com","Hey"," well");
-         leaderboardService.updateAllProfiles();
+//         leaderboardService.updateAllProfiles();
          return ;
 
 
