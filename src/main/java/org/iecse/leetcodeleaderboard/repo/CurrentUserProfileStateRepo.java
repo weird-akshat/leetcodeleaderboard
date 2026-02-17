@@ -10,4 +10,6 @@ public interface CurrentUserProfileStateRepo extends ReactiveCrudRepository<Curr
     Mono<CurrentUserProfileState> findByLeetcodeId(String leetcodeId);
     @Query("SELECT * FROM current_user_profile_state " + "ORDER BY (easy * :m1 + medium * :m2 + hard * :m3) DESC")
     Flux<CurrentUserProfileState> findTopRanked(double m1, double m2, double m3);
+
+
 }

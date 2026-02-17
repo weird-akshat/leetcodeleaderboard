@@ -8,6 +8,7 @@ import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
 import org.iecse.leetcodeleaderboard.repo.*;
+import org.iecse.leetcodeleaderboard.security.entity.AppUser;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
 import org.springframework.graphql.client.HttpGraphQlClient;
 import org.springframework.http.HttpStatus;
@@ -173,6 +174,35 @@ public class LeaderboardService {
     }
 
 
+    public Mono<AppUser> updateLeetcodeId(String oldLeetcodeId, String newLeetcodeId, String email){
+        return this.verifyLeetcodeId(email,newLeetcodeId).flatMap(bool-> leetcodeUserIdRepo.delete(new LeetcodeUserId(oldLeetcodeId)).then(
+                leetcodeUserIdRepo.save(new LeetcodeUserId(newLeetcodeId))
+        ).then(
+                currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).flatMap(currentUserProfileState -> {
+                            currentUserProfileState.setLeetcodeId(newLeetcodeId);
+
+                            return currentUserProfileStateRepo.save(currentUserProfileState);
+                        }).flatMap(current-> monthlyRepo.findByLeetcodeId(oldLeetcodeId))
+                        .flatMap(monthly->{
+                            monthly.setLeetcodeId(newLeetcodeId);
+                            return monthlyRepo.save(monthly);
+                        })
+                        .flatMap(monthly->dailyRepo.findByLeetcodeId(oldLeetcodeId))
+                        .flatMap(daily-> {
+                            daily.setLeetcodeId(newLeetcodeId);
+                            return dailyRepo.save(daily);
+                        })
+                        .flatMap(daily->weeklyRepo.findByLeetcodeId(oldLeetcodeId))
+                        .flatMap(weekly->{
+                            weekly.setLeetcodeId(newLeetcodeId);
+                            return weeklyRepo.save(weekly);
+                        }).flatMap(weekly-> appUserRepo.findByUsername(email).flatMap(appUser -> {
+                            appUser.setLeetcodeId(newLeetcodeId);
+                            return appUserRepo.save(appUser);
+                        }))
+        ));
+
+    }
 
     @Scheduled(cron = "0 0 0 * * *")
     public void scheduledDailySync() {

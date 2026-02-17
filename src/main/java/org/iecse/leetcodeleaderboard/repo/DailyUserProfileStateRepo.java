@@ -1,5 +1,6 @@
 package org.iecse.leetcodeleaderboard.repo;
 
+import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 import org.iecse.leetcodeleaderboard.entity.DailyUserProfileState;
 import org.springframework.data.r2dbc.repository.Modifying;
 import org.springframework.data.r2dbc.repository.Query;
@@ -23,6 +24,7 @@ public interface DailyUserProfileStateRepo extends ReactiveCrudRepository<DailyU
              "WHERE c.is_active = true " +
             "ORDER BY total_score DESC")
     Flux<DailyUserProfileState> getDailyGainsLeaderboard(int m1, int m2, int m3);
+    Mono<DailyUserProfileState> findByLeetcodeId(String leetcodeId);
 
     @Modifying
     @Query("DELETE FROM daily_user_profile_state")
