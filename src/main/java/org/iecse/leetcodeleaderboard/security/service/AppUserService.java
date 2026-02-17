@@ -16,6 +16,7 @@ import org.iecse.leetcodeleaderboard.service.OtpService;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.security.SecureRandom;
@@ -50,7 +51,22 @@ public class AppUserService {
             return appUser;
         }).flatMap(repository::save);
     }
+    public Mono<AppUser> forgotPassword(String email, String newPassword){
 
+        int otpNum = secureRandom.nextInt(100000);
+        String otp = String.format("%06d",otpNum);
+        return repository.findByUsername(email).switchIfEmpty(Mono.error(new RuntimeException("No user for this email")) )
+                .map(appUser ->{
+                    PendingRegistration pendingRegistration = new PendingRegistration(appUser,otp);
+                    appUser.setPassword(passwordEncoder.encode(newPassword));
+                    otpService.savePendingRegistration(email,pendingRegistration);
+                    mailService.sendPlainText(email,"Forgot Password"," OPT: "+ otp);
+
+                    return appUser;
+
+                } );
+
+    }
     public Mono<AppUser> registerUser(SignupRequest request) {
 
         return repository.findByUsername(request.getUsername())

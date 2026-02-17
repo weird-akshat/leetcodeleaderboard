@@ -36,7 +36,16 @@ public class AuthController {
         return userService.saveUser(request)
                 .map(appUser -> new ResponseEntity<>(HttpStatus.OK));
     }
-
+    @PostMapping("/forgotpassword")
+    public Mono<ResponseEntity<Boolean>> forgotPassword(@RequestBody ForgotPasswordRequest forgotPasswordRequest){
+        return userService.forgotPassword(forgotPasswordRequest.getUsername(),forgotPasswordRequest.getPassword()).map(appUser -> new ResponseEntity<>(true,HttpStatus.OK));
+    }
+    @PostMapping("/forgotpassword/otp")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<ResponseEntity<Boolean>> forgotPasswordUpdate(@RequestBody OtpRequest request) {
+        return userService.saveUser(request)
+                .map(appUser -> new ResponseEntity<>(HttpStatus.OK));
+    }
     @PutMapping("/update/password")
     public Mono<ResponseEntity<UserResponse>>updatePassword(@RequestBody UpdatePasswordRequest updatePasswordRequest){
         return authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(updatePasswordRequest.getUsername(),updatePasswordRequest.getPassword()))

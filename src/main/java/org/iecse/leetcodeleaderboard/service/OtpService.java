@@ -20,6 +20,22 @@ public class OtpService {
         }
     }
 
+    public void saveOTP(String email, String otp){
+        Cache cache = cacheManager.getCache(("otpCache"));
+        if (cache!=null){
+            cache.put(email,otp);
+        }
+    }
+    public String getOTP(String email){
+        Cache cache= cacheManager.getCache("otpCache");
+        if(cache!=null){
+            return cache.get(email,String.class);
+        }
+        else {
+            return null;
+        }
+    }
+
     public PendingRegistration getPendingRegistration(String email) {
         Cache cache = cacheManager.getCache("otpCache");
         return (cache != null) ? cache.get(email, PendingRegistration.class) : null;
