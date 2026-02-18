@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.dto.UserData;
 import org.iecse.leetcodeleaderboard.dto.UserProfileDto;
+import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
@@ -173,36 +174,105 @@ public class LeaderboardService {
                 .flatMapMany(isActive ->monthlyRepo.getMonthlyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
-
-    public Mono<AppUser> updateLeetcodeId(String oldLeetcodeId, String newLeetcodeId, String email){
-        return this.verifyLeetcodeId(email,newLeetcodeId).flatMap(bool-> leetcodeUserIdRepo.delete(new LeetcodeUserId(oldLeetcodeId)).then(
-                leetcodeUserIdRepo.save(new LeetcodeUserId(newLeetcodeId))
-        ).then(
-                currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).flatMap(currentUserProfileState -> {
-                            currentUserProfileState.setLeetcodeId(newLeetcodeId);
-
-                            return currentUserProfileStateRepo.save(currentUserProfileState);
-                        }).flatMap(current-> monthlyRepo.findByLeetcodeId(oldLeetcodeId))
-                        .flatMap(monthly->{
-                            monthly.setLeetcodeId(newLeetcodeId);
-                            return monthlyRepo.save(monthly);
-                        })
-                        .flatMap(monthly->dailyRepo.findByLeetcodeId(oldLeetcodeId))
-                        .flatMap(daily-> {
-                            daily.setLeetcodeId(newLeetcodeId);
-                            return dailyRepo.save(daily);
-                        })
-                        .flatMap(daily->weeklyRepo.findByLeetcodeId(oldLeetcodeId))
-                        .flatMap(weekly->{
-                            weekly.setLeetcodeId(newLeetcodeId);
-                            return weeklyRepo.save(weekly);
-                        }).flatMap(weekly-> appUserRepo.findByUsername(email).flatMap(appUser -> {
-                            appUser.setLeetcodeId(newLeetcodeId);
-                            return appUserRepo.save(appUser);
-                        }))
-        ));
-
+    public Mono<Void> updateLeetId(String oldLeetcodeId, String newLeetcodeId, String email){
+        return this.verifyLeetcodeId(email,newLeetcodeId).filter(
+                Boolean::booleanValue
+        )
+                .switchIfEmpty(Mono.error(new RuntimeException("Leetcode ID not verified")))
+                .flatMap(
+                        verified->
+                                Mono.when(
+                                        changeIdInDailyState(oldLeetcodeId,newLeetcodeId),
+                                        changeIdInWeekly(oldLeetcodeId,newLeetcodeId),
+                                        changeIdInMonthlyState(oldLeetcodeId,newLeetcodeId),
+                                        changeIdInCurrentState(oldLeetcodeId,newLeetcodeId)
+                                )
+                );
     }
+
+    public Mono<Boolean> changeIdInCurrentState(String oldLeetcodeId, String newLeetcodeId){
+        return currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).flatMap(currentUserProfileState -> {
+            currentUserProfileState.setLeetcodeId(newLeetcodeId);
+            return currentUserProfileStateRepo.save(currentUserProfileState);
+        }).map(currentUserProfileState -> {
+            if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
+                return true;
+            }
+            else{
+                throw new RuntimeException();
+            }
+        });
+    }
+
+    public Mono<Boolean> changeIdInDailyState(String oldLeetcodeId,String newLeetcodeId){
+        return dailyRepo.findByLeetcodeId(oldLeetcodeId).flatMap(dailyUserProfileState -> {
+            dailyUserProfileState.setLeetcodeId(newLeetcodeId);
+            return dailyRepo.save(dailyUserProfileState);
+        }).map(currentUserProfileState -> {
+            if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
+                return true;
+            }
+            else{
+                throw new RuntimeException();
+            }
+        });
+    }
+    public Mono<Boolean> changeIdInMonthlyState(String oldLeetcodeId,String newLeetcodeId){
+        return monthlyRepo.findByLeetcodeId(oldLeetcodeId).flatMap(monthlyUserProfileState -> {
+            monthlyUserProfileState.setLeetcodeId(newLeetcodeId);
+            return monthlyRepo.save(monthlyUserProfileState);
+        }).map(currentUserProfileState -> {
+            if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
+                return true;
+            }
+            else{
+                throw new RuntimeException();
+            }
+        });
+    }
+    public Mono<Boolean> changeIdInWeekly(String oldLeetcodeId,String newLeetcodeId){
+        return weeklyRepo.findByLeetcodeId(oldLeetcodeId).flatMap(weeklyUserProfileState -> {
+            weeklyUserProfileState.setLeetcodeId(newLeetcodeId);
+            return weeklyRepo.save(weeklyUserProfileState);
+        }).map(currentUserProfileState -> {
+            if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
+                return true;
+            }
+            else{
+                throw new RuntimeException();
+            }
+        });
+    }
+
+//    public Mono<AppUser> updateLeetcodeId(String oldLeetcodeId, String newLeetcodeId, String email){
+//        return this.verifyLeetcodeId(email,newLeetcodeId).flatMap(bool-> leetcodeUserIdRepo.delete(new LeetcodeUserId(oldLeetcodeId)).then(
+//                leetcodeUserIdRepo.save(new LeetcodeUserId(newLeetcodeId))
+//        ).then(
+//                currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).flatMap(currentUserProfileState -> {
+//                            currentUserProfileState.setLeetcodeId(newLeetcodeId);
+//
+//                            return currentUserProfileStateRepo.save(currentUserProfileState);
+//                        }).flatMap(current-> monthlyRepo.findByLeetcodeId(oldLeetcodeId))
+//                        .flatMap(monthly->{
+//                            monthly.setLeetcodeId(newLeetcodeId);
+//                            return monthlyRepo.save(monthly);
+//                        })
+//                        .flatMap(monthly->dailyRepo.findByLeetcodeId(oldLeetcodeId))
+//                        .flatMap(daily-> {
+//                            daily.setLeetcodeId(newLeetcodeId);
+//                            return dailyRepo.save(daily);
+//                        })
+//                        .flatMap(daily->weeklyRepo.findByLeetcodeId(oldLeetcodeId))
+//                        .flatMap(weekly->{
+//                            weekly.setLeetcodeId(newLeetcodeId);
+//                            return weeklyRepo.save(weekly);
+//                        }).flatMap(weekly-> appUserRepo.findByUsername(email).flatMap(appUser -> {
+//                            appUser.setLeetcodeId(newLeetcodeId);
+//                            return appUserRepo.save(appUser);
+//                        }))
+//        ));
+//
+//    }
 
     @Scheduled(cron = "0 0 0 * * *")
     public void scheduledDailySync() {
