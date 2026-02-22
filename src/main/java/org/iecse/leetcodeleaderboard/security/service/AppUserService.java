@@ -4,6 +4,8 @@ package org.iecse.leetcodeleaderboard.security.service;
 import lombok.RequiredArgsConstructor;
 
 
+import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
+import org.iecse.leetcodeleaderboard.repo.LeetcodeUserIdRepo;
 import org.iecse.leetcodeleaderboard.security.dto.OtpRequest;
 import org.iecse.leetcodeleaderboard.security.dto.PendingRegistration;
 import org.iecse.leetcodeleaderboard.security.dto.SignupRequest;
@@ -26,7 +28,7 @@ import java.security.SecureRandom;
 public class AppUserService {
     private final LeaderboardService leaderboardService;
     private final AppUserRepository repository;
-
+    private final LeetcodeUserIdRepo leetcodeUserIdRepo;
     private final PasswordEncoder passwordEncoder;
     private final SecureRandom secureRandom;
     private final OtpService otpService;
@@ -72,9 +74,15 @@ public class AppUserService {
         return repository.findByUsername(request.getUsername())
                 .flatMap(existing -> Mono.<AppUser>error(new RuntimeException("User already exists")))
                 .switchIfEmpty(Mono.defer(() ->
-                     leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername()).flatMap(
+                     leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername())
+                             .flatMap(verified->{
+                                 if (verified)
+                                    return leetcodeUserIdRepo.insertUser(new LeetcodeUserId(request.getLeetcodeId()));
+                                 else
+                                     throw new RuntimeException();
+
+                             }).flatMap(
                             verified-> {
-                                if (verified){
                                     AppUser newUser = new AppUser();
                                     newUser.setUsername(request.getUsername());
                                     newUser.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -87,10 +95,6 @@ public class AppUserService {
                                     otpService.savePendingRegistration(request.getUsername(), pendingRegistration);
                                     mailService.sendPlainText(request.getUsername(), "LeetLead OTP","Your OTP is: "+ otp);
                                     return Mono.just(newUser);
-                                }
-                                else{
-                                    throw new RuntimeException("LeetcodeId not verified");
-                                }
                             }
                     )
 

@@ -28,13 +28,13 @@ public class LeaderboardController {
             @RequestParam(defaultValue = DEFAULT_EASY) int easy,
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
             @RequestParam(defaultValue = DEFAULT_HARD) int hard) {
-
+        log.info("Request received: getRankedLeaderboard");
         return leaderboardService.fetchLeaderboard(easy, medium, hard);
     }
 
     @PutMapping("/updateLeetcodeId")
     public Mono<ResponseEntity<LoginResponse>> updateLeetcodeId(@RequestBody UpdateLeetcodeIdDto updateLeetcodeIdDto){
-        log.info("Hit the endpoint");
+        log.info("Request received: updateLeetcodeId to {}",updateLeetcodeIdDto.getNewLeetcodeId());
         return leaderboardService.updateLeetcodeIdUser(updateLeetcodeIdDto.getNewLeetcodeId()).map(LoginResponse::new).map(loginResponse->new ResponseEntity<>(loginResponse, HttpStatus.OK));
     }
 
@@ -44,7 +44,7 @@ public class LeaderboardController {
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
             @RequestParam(defaultValue = DEFAULT_HARD) int hard) {
 
-        log.info("Request Received: Daily Leaderboard");
+        log.info("Request received: getDailyRankedLeaderboard");
         return leaderboardService.fetchDailyLeaderboard(easy, medium, hard);
     }
 
@@ -53,7 +53,7 @@ public class LeaderboardController {
             @RequestParam(defaultValue = DEFAULT_EASY) int easy,
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
             @RequestParam(defaultValue = DEFAULT_HARD) int hard) {
-
+        log.info("Request received: getWeeklyRankedLeaderboard");
         return leaderboardService.fetchWeeklyLeaderboard(easy, medium, hard);
     }
 
@@ -62,7 +62,7 @@ public class LeaderboardController {
             @RequestParam(defaultValue = DEFAULT_EASY) int easy,
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
             @RequestParam(defaultValue = DEFAULT_HARD) int hard) {
-
+        log.info("Request received: getMonthlyRankedLeaderboard");
         return leaderboardService.fetchMonthlyLeaderboard(easy, medium, hard);
     }
 

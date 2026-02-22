@@ -5,25 +5,36 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.dto.UserData;
 import org.iecse.leetcodeleaderboard.dto.UserProfileDto;
+import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
+import org.iecse.leetcodeleaderboard.exception.LeetcodeAPIException;
+import org.iecse.leetcodeleaderboard.exception.LeetcodeIdChangedException;
+import org.iecse.leetcodeleaderboard.exception.LeetcodeIdNotVerifiedException;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
 import org.iecse.leetcodeleaderboard.repo.*;
 import org.iecse.leetcodeleaderboard.security.entity.AppUser;
 import org.iecse.leetcodeleaderboard.security.jwt.JwtTokenProvider;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
+import org.springframework.graphql.client.GraphQlClientException;
 import org.springframework.graphql.client.HttpGraphQlClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.JsonNode;
 
+import java.security.Principal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+
+import org.springframework.core.codec.DecodingException;
+
 
 
 @Data
@@ -44,6 +55,7 @@ public class LeaderboardService {
 
 
     public Mono<UserData> getIdData(String username){
+        log.trace("Fetching leet-code account details for user: {}",username);
         String query = """
             query userProfileUserQuestionProgressV2($userSlug: String!) {
               userProfileUserQuestionProgressV2(userSlug: $userSlug) {
@@ -58,13 +70,26 @@ public class LeaderboardService {
         return leetcodeClient.document(query)
             .variable("userSlug", username)
             .retrieve("userProfileUserQuestionProgressV2")
-            .toEntity(UserData.class).map(userData->{userData.setUserName(username); return userData;});
+            .toEntity(UserData.class).map(userData->{userData.setUserName(username); return userData;})
+                .onErrorMap(WebClientRequestException.class,
+                        ex -> new LeetcodeAPIException(
+                                "LeetCode service unreachable", ex))
 
+                .onErrorMap(WebClientResponseException.class,
+                        ex -> new LeetcodeAPIException(
+                                "LeetCode API returned HTTP error: " + ex.getStatusCode(), ex))
 
+                .onErrorMap(GraphQlClientException.class,
+                        ex -> new LeetcodeAPIException(
+                                "LeetCode GraphQL error", ex))
 
+                .onErrorMap(DecodingException.class,
+                        ex -> new LeetcodeAPIException(
+                                "Failed to decode LeetCode response", ex));
 
     }
     public Mono<String> getUserAboutMe(String username) {
+        log.trace("Fetching leet-code about-me details for user: {}",username);
         String query = """
         query userPublicProfile($username: String!) {
           matchedUser(username: $username) {
@@ -81,12 +106,33 @@ public class LeaderboardService {
                 .toEntity(JsonNode.class)
                 .map(node -> {
                     return node.path("profile").path("aboutMe").asText();
-                });
+                })
+                .onErrorMap(WebClientRequestException.class,
+                        ex -> new LeetcodeAPIException(
+                                "LeetCode service unreachable", ex))
+
+                .onErrorMap(WebClientResponseException.class,
+                        ex -> new LeetcodeAPIException(
+                                "LeetCode API returned HTTP error: " + ex.getStatusCode(), ex))
+
+                .onErrorMap(GraphQlClientException.class,
+                        ex -> new LeetcodeAPIException(
+                                "LeetCode GraphQL error", ex))
+
+                .onErrorMap(DecodingException.class,
+                        ex -> new LeetcodeAPIException(
+                                "Failed to decode LeetCode response", ex));
     }
     public Mono<Boolean> verifyLeetcodeId(String leetcodeId, String email){
+        log.debug("Verifying leetcodeId {} for {}",leetcodeId,email);
         return this.getUserAboutMe(leetcodeId).map(aboutMe->{
             log.info("verifying leetcodeId: {}",leetcodeId);
-            return aboutMe.toLowerCase().contains("hello "+email.substring(0,email.indexOf('@')));
+            if (aboutMe.toLowerCase().contains("hello "+email.substring(0,email.indexOf('@')))){
+                return true;
+            }
+            else{
+                throw new LeetcodeIdNotVerifiedException();
+            }
         });
     }
 
@@ -137,20 +183,21 @@ public class LeaderboardService {
     }
 
     public Mono<Boolean> isLeetcodeIdActive(){
+        log.trace("Check: isLeetcodeIdActive");
         return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
-                .map(auth->auth.getName())
-                .flatMap(username->appUserRepo.findByUsername(username))
-                .map(appUser -> appUser.getLeetcodeId())
-                .flatMap(leetocodeId->currentUserProfileStateRepo.findByLeetcodeId(leetocodeId))
-                        .map(currentUserProfileState -> currentUserProfileState.isActive())
-                .flatMap(bool->Mono.just(bool)
+                .map(Principal::getName)
+                .flatMap(appUserRepo::findByUsername)
+                .map(AppUser::getLeetcodeId)
+                .flatMap(currentUserProfileStateRepo::findByLeetcodeId)
+                        .map(CurrentUserProfileState::isActive)
+                .flatMap(Mono::just
                 );
 
     }
     public Flux<UserProfileDto> fetchLeaderboard(int easyMultiplier,int mediumMultiplier, int hardMultiplier){
         return isLeetcodeIdActive()
                 .filter(isActive -> isActive)
-                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .switchIfEmpty(Mono.error(new LeetcodeIdChangedException()))
                 .flatMapMany(isActive -> currentUserProfileStateRepo.findTopRanked(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
@@ -159,21 +206,21 @@ public class LeaderboardService {
 
         return isLeetcodeIdActive()
                 .filter(isActive -> isActive)
-                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .switchIfEmpty(Mono.error(new LeetcodeIdChangedException()))
                 .flatMapMany(isActive ->dailyRepo.getDailyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
     public Flux<UserProfileDto> fetchWeeklyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
         return isLeetcodeIdActive()
                 .filter(isActive -> isActive)
-                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .switchIfEmpty(Mono.error(new LeetcodeIdChangedException()))
                 .flatMapMany(isActive ->weeklyRepo.getWeeklyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
 
     public Flux<UserProfileDto> fetchMonthlyLeaderboard(int easyMultiplier, int mediumMultiplier, int hardMultiplier){
         return isLeetcodeIdActive()
                 .filter(isActive -> isActive)
-                .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
+                .switchIfEmpty(Mono.error(new LeetcodeIdChangedException()))
                 .flatMapMany(isActive ->monthlyRepo.getMonthlyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
     private Mono<AppUser> changeUserLeetcodeId(AppUser appUser, String newLeetcodeId){
@@ -183,14 +230,14 @@ public class LeaderboardService {
     @Transactional
     public Mono<String> updateLeetcodeIdUser(String newLeetcodeId){
         return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
-                .map(auth->auth.getName())
+                .map(Principal::getName)
                 .flatMap(email-> this.verifyLeetcodeId(newLeetcodeId,email).filter(Boolean::booleanValue).switchIfEmpty(Mono.error(new RuntimeException("Leetcode Id not verified"))))
                 .then(ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication))
-                .map(authentication -> authentication.getName())
-                .flatMap(username->appUserRepo.findByUsername(username))
+                .map(Principal::getName)
+                .flatMap(appUserRepo::findByUsername)
                 .flatMap(appUser -> {
                     log.info("Update: {}",appUser);
-                    return updateLeetId(appUser.getLeetcodeId(), newLeetcodeId, appUser.getUsername()).then(
+                    return updateLeetId(appUser.getLeetcodeId(), newLeetcodeId).then(
                         Mono.defer(()->changeUserLeetcodeId(appUser,newLeetcodeId))
 
                     );
@@ -201,7 +248,7 @@ public class LeaderboardService {
         LeetcodeUserId leetcodeUserId = new LeetcodeUserId(newLeetcodeId);
         return leetcodeUserIdRepo.deleteById(oldLeetcodeId).then(leetcodeUserIdRepo.insertUser(leetcodeUserId));
     }
-    public Mono<Void> updateLeetId(String oldLeetcodeId, String newLeetcodeId, String email){
+    public Mono<Void> updateLeetId(String oldLeetcodeId, String newLeetcodeId){
         log.info("Started updating leetcodeId");
         return Mono.when(
                 changeIdiInLeetcodeUserIds(oldLeetcodeId,newLeetcodeId),
