@@ -10,6 +10,7 @@ import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
 import org.iecse.leetcodeleaderboard.repo.*;
 import org.iecse.leetcodeleaderboard.security.entity.AppUser;
+import org.iecse.leetcodeleaderboard.security.jwt.JwtTokenProvider;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
 import org.springframework.graphql.client.HttpGraphQlClient;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,7 @@ public class LeaderboardService {
     private final LeaderboardSyncService leaderboardSyncService;
     private final MonthlyUserProfileStateRepo monthlyRepo;
     private final AppUserRepository appUserRepo;
+    private final JwtTokenProvider jwtTokenProvider;
 
 
 
@@ -85,11 +87,18 @@ public class LeaderboardService {
                 });
     }
     public Mono<Boolean> verifyLeetcodeId(String leetcodeId, String email){
-        return this.getUserAboutMe(leetcodeId).map(aboutMe->aboutMe.toLowerCase().contains("hello "+email.substring(0,email.indexOf('@'))));
+
+        return this.getUserAboutMe(leetcodeId).map(aboutMe->{
+            log.info("verifying leetcodeId: {}",leetcodeId);
+            return aboutMe.toLowerCase().contains("hello "+email.substring(0,email.indexOf('@')));
+        });
     }
 
     public Flux<UserData> getAllProfilesDetails()  {
-        return fetchAllLeetcodeIdsFromDatabase().delayElements(Duration.ofSeconds(5)).flatMap(item-> this.getIdData(item.getUserId()));
+        return leetcodeUserIdRepo.findAll().delayElements(Duration.ofSeconds(5)).flatMap(item->{
+            log.info("Id: {}",item);
+            return this.getIdData(item.getUserId());
+        } );
     }
 
     @Scheduled(cron = "@hourly")
@@ -130,9 +139,7 @@ public class LeaderboardService {
 
         ).subscribe();
     }
-    public Flux<LeetcodeUserId> fetchAllLeetcodeIdsFromDatabase(){
-        return leetcodeUserIdRepo.findAll();
-    }
+
     public Mono<Boolean> isLeetcodeIdActive(){
         return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
                 .map(auth->auth.getName())
@@ -173,21 +180,42 @@ public class LeaderboardService {
                 .switchIfEmpty(Mono.error(new RuntimeException("Your LeetCode id's details can't be found, please correct your leetcode id")))
                 .flatMapMany(isActive ->monthlyRepo.getMonthlyGainsLeaderboard(easyMultiplier,mediumMultiplier,hardMultiplier).map(UserProfileMapper::userProfileToDto));
     }
+    private Mono<AppUser> changeUserLeetcodeId(AppUser appUser, String newLeetcodeId){
+        appUser.setLeetcodeId(newLeetcodeId);
+        return appUserRepo.save(appUser);
+    }
+    public Mono<String> updateLeetcodeIdUser(String newLeetcodeId){
+        return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
+                .map(auth->auth.getName())
+                .flatMap(email-> this.verifyLeetcodeId(newLeetcodeId,email).filter(Boolean::booleanValue).switchIfEmpty(Mono.error(new RuntimeException("Leetcode Id not verified"))))
+                .then(ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication))
+                .map(authentication -> authentication.getName())
+                .flatMap(username->appUserRepo.findByUsername(username))
+                .flatMap(appUser -> {
+                    log.info("Update: {}",appUser);
+                    return updateLeetId(appUser.getLeetcodeId(), newLeetcodeId, appUser.getUsername()).then(
+                        changeUserLeetcodeId(appUser,newLeetcodeId)
 
+                    );
+                })
+                .flatMap(appUser -> Mono.just(jwtTokenProvider.createToken(appUser.getUsername(),appUser.getRole(), appUser.getLeetcodeId())));
+
+
+    }
+    public Mono<Void> changeIdiInLeetcodeUserIds(String oldLeetcodeId, String newLeetcodeId){
+        LeetcodeUserId leetcodeUserId = new LeetcodeUserId(newLeetcodeId);
+        return Mono.when(leetcodeUserIdRepo.deleteById(oldLeetcodeId),leetcodeUserIdRepo.insertUser(leetcodeUserId));
+    }
     public Mono<Void> updateLeetId(String oldLeetcodeId, String newLeetcodeId, String email){
-        return this.verifyLeetcodeId(email,newLeetcodeId).filter(
-                Boolean::booleanValue
-        )
-                .switchIfEmpty(Mono.error(new RuntimeException("Leetcode ID not verified")))
-                .flatMap(
-                        verified->
-                                Mono.when(
-                                        changeIdInDailyState(oldLeetcodeId,newLeetcodeId),
-                                        changeIdInWeekly(oldLeetcodeId,newLeetcodeId),
-                                        changeIdInMonthlyState(oldLeetcodeId,newLeetcodeId),
-                                        changeIdInCurrentState(oldLeetcodeId,newLeetcodeId)
-                                )
-                );
+        log.info("Started updating leetcodeId");
+        return Mono.when(
+                changeIdiInLeetcodeUserIds(oldLeetcodeId,newLeetcodeId),
+                changeIdInDailyState(oldLeetcodeId,newLeetcodeId),
+                changeIdInWeekly(oldLeetcodeId,newLeetcodeId),
+                changeIdInMonthlyState(oldLeetcodeId,newLeetcodeId),
+                changeIdInCurrentState(oldLeetcodeId,newLeetcodeId)
+        );
+
     }
 
     public Mono<Boolean> changeIdInCurrentState(String oldLeetcodeId, String newLeetcodeId){
@@ -243,36 +271,6 @@ public class LeaderboardService {
             }
         });
     }
-
-//    public Mono<AppUser> updateLeetcodeId(String oldLeetcodeId, String newLeetcodeId, String email){
-//        return this.verifyLeetcodeId(email,newLeetcodeId).flatMap(bool-> leetcodeUserIdRepo.delete(new LeetcodeUserId(oldLeetcodeId)).then(
-//                leetcodeUserIdRepo.save(new LeetcodeUserId(newLeetcodeId))
-//        ).then(
-//                currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).flatMap(currentUserProfileState -> {
-//                            currentUserProfileState.setLeetcodeId(newLeetcodeId);
-//
-//                            return currentUserProfileStateRepo.save(currentUserProfileState);
-//                        }).flatMap(current-> monthlyRepo.findByLeetcodeId(oldLeetcodeId))
-//                        .flatMap(monthly->{
-//                            monthly.setLeetcodeId(newLeetcodeId);
-//                            return monthlyRepo.save(monthly);
-//                        })
-//                        .flatMap(monthly->dailyRepo.findByLeetcodeId(oldLeetcodeId))
-//                        .flatMap(daily-> {
-//                            daily.setLeetcodeId(newLeetcodeId);
-//                            return dailyRepo.save(daily);
-//                        })
-//                        .flatMap(daily->weeklyRepo.findByLeetcodeId(oldLeetcodeId))
-//                        .flatMap(weekly->{
-//                            weekly.setLeetcodeId(newLeetcodeId);
-//                            return weeklyRepo.save(weekly);
-//                        }).flatMap(weekly-> appUserRepo.findByUsername(email).flatMap(appUser -> {
-//                            appUser.setLeetcodeId(newLeetcodeId);
-//                            return appUserRepo.save(appUser);
-//                        }))
-//        ));
-//
-//    }
 
     @Scheduled(cron = "0 0 0 * * *")
     public void scheduledDailySync() {
