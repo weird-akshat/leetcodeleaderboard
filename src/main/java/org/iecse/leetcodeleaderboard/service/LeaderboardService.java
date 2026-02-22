@@ -1,10 +1,10 @@
 package org.iecse.leetcodeleaderboard.service;
+import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.dto.UserData;
 import org.iecse.leetcodeleaderboard.dto.UserProfileDto;
-import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
@@ -13,13 +13,10 @@ import org.iecse.leetcodeleaderboard.security.entity.AppUser;
 import org.iecse.leetcodeleaderboard.security.jwt.JwtTokenProvider;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
 import org.springframework.graphql.client.HttpGraphQlClient;
-import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tools.jackson.databind.JsonNode;
@@ -87,7 +84,6 @@ public class LeaderboardService {
                 });
     }
     public Mono<Boolean> verifyLeetcodeId(String leetcodeId, String email){
-
         return this.getUserAboutMe(leetcodeId).map(aboutMe->{
             log.info("verifying leetcodeId: {}",leetcodeId);
             return aboutMe.toLowerCase().contains("hello "+email.substring(0,email.indexOf('@')));
@@ -184,6 +180,7 @@ public class LeaderboardService {
         appUser.setLeetcodeId(newLeetcodeId);
         return appUserRepo.save(appUser);
     }
+    @Transactional
     public Mono<String> updateLeetcodeIdUser(String newLeetcodeId){
         return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
                 .map(auth->auth.getName())
@@ -194,17 +191,15 @@ public class LeaderboardService {
                 .flatMap(appUser -> {
                     log.info("Update: {}",appUser);
                     return updateLeetId(appUser.getLeetcodeId(), newLeetcodeId, appUser.getUsername()).then(
-                        changeUserLeetcodeId(appUser,newLeetcodeId)
+                        Mono.defer(()->changeUserLeetcodeId(appUser,newLeetcodeId))
 
                     );
                 })
                 .flatMap(appUser -> Mono.just(jwtTokenProvider.createToken(appUser.getUsername(),appUser.getRole(), appUser.getLeetcodeId())));
-
-
     }
     public Mono<Void> changeIdiInLeetcodeUserIds(String oldLeetcodeId, String newLeetcodeId){
         LeetcodeUserId leetcodeUserId = new LeetcodeUserId(newLeetcodeId);
-        return Mono.when(leetcodeUserIdRepo.deleteById(oldLeetcodeId),leetcodeUserIdRepo.insertUser(leetcodeUserId));
+        return leetcodeUserIdRepo.deleteById(oldLeetcodeId).then(leetcodeUserIdRepo.insertUser(leetcodeUserId));
     }
     public Mono<Void> updateLeetId(String oldLeetcodeId, String newLeetcodeId, String email){
         log.info("Started updating leetcodeId");
@@ -217,7 +212,6 @@ public class LeaderboardService {
         );
 
     }
-
     public Mono<Boolean> changeIdInCurrentState(String oldLeetcodeId, String newLeetcodeId){
         return currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).flatMap(currentUserProfileState -> {
             currentUserProfileState.setLeetcodeId(newLeetcodeId);

@@ -14,7 +14,7 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/leaderboard")
+@RequestMapping("/api/v1")
 @AllArgsConstructor
 public class LeaderboardController {
     private final LeaderboardService leaderboardService;
@@ -23,7 +23,7 @@ public class LeaderboardController {
     private static final String DEFAULT_MEDIUM = "125";
     private static final String DEFAULT_HARD = "150";
 
-    @GetMapping
+    @GetMapping("/leaderboard")
     public Flux<UserProfileDto> getRankedLeaderboard(
             @RequestParam(defaultValue = DEFAULT_EASY) int easy,
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
@@ -38,7 +38,7 @@ public class LeaderboardController {
         return leaderboardService.updateLeetcodeIdUser(updateLeetcodeIdDto.getNewLeetcodeId()).map(LoginResponse::new).map(loginResponse->new ResponseEntity<>(loginResponse, HttpStatus.OK));
     }
 
-    @GetMapping("/daily")
+    @GetMapping("/leaderboard/daily")
     public Flux<UserProfileDto> getDailyRankedLeaderboard(
             @RequestParam(defaultValue = DEFAULT_EASY) int easy,
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
@@ -48,7 +48,7 @@ public class LeaderboardController {
         return leaderboardService.fetchDailyLeaderboard(easy, medium, hard);
     }
 
-    @GetMapping("/weekly")
+    @GetMapping("/leaderboard/weekly")
     public Flux<UserProfileDto> getWeeklyRankedLeaderboard(
             @RequestParam(defaultValue = DEFAULT_EASY) int easy,
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
@@ -57,7 +57,7 @@ public class LeaderboardController {
         return leaderboardService.fetchWeeklyLeaderboard(easy, medium, hard);
     }
 
-    @GetMapping("/monthly")
+    @GetMapping("/leaderboard/monthly")
     public Flux<UserProfileDto> getMonthlyRankedLeaderboard(
             @RequestParam(defaultValue = DEFAULT_EASY) int easy,
             @RequestParam(defaultValue = DEFAULT_MEDIUM) int medium,
