@@ -7,15 +7,14 @@ import org.iecse.leetcodeleaderboard.dto.UserData;
 import org.iecse.leetcodeleaderboard.dto.UserProfileDto;
 import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
-import org.iecse.leetcodeleaderboard.exception.LeetcodeAPIException;
-import org.iecse.leetcodeleaderboard.exception.LeetcodeIdChangedException;
-import org.iecse.leetcodeleaderboard.exception.LeetcodeIdNotVerifiedException;
+import org.iecse.leetcodeleaderboard.exception.*;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.mapper.UserProfileMapper;
 import org.iecse.leetcodeleaderboard.repo.*;
 import org.iecse.leetcodeleaderboard.security.entity.AppUser;
 import org.iecse.leetcodeleaderboard.security.jwt.JwtTokenProvider;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
+import org.springframework.dao.DataAccessException;
 import org.springframework.graphql.client.GraphQlClientException;
 import org.springframework.graphql.client.HttpGraphQlClient;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -139,8 +138,14 @@ public class LeaderboardService {
     public Flux<UserData> getAllProfilesDetails()  {
         return leetcodeUserIdRepo.findAll().delayElements(Duration.ofSeconds(5)).flatMap(item->{
             log.info("Id: {}",item);
-            return this.getIdData(item.getUserId());
-        } );
+            return this.getIdData(item.getUserId())
+                    .onErrorResume(e -> {
+                        log.error("Failed to fetch data for user {}: {}", item.getUserId(), e.getMessage());
+                        return Mono.empty();
+                    }).onErrorMap(DataAccessException.class, e ->
+                            new DatabaseOperationException("Database error while fetching users", e)
+                    );
+        });
     }
 
     @Scheduled(cron = "@hourly")
@@ -161,16 +166,18 @@ public class LeaderboardService {
                         .flatMap(currentUserProfileStateRepo::save)
                         .onErrorResume(e -> {
                             log.error("Error updating user {}: {}", userData.getUserName(), e.getMessage());
-
                             return Mono.empty();
                         });
             }
             else{
-
                 return currentUserProfileStateRepo.findByLeetcodeId(userData.getUserName()).flatMap(currentUserProfileState->{
                     if (ChronoUnit.DAYS.between(currentUserProfileState.getLastUpdated(),LocalDateTime.now())>=2){
                         currentUserProfileState.setActive(false);
-                        return currentUserProfileStateRepo.save(currentUserProfileState);
+                        return currentUserProfileStateRepo.save(currentUserProfileState)
+                                .onErrorResume(e -> {
+                                    log.error("Failed to update inactive status for user {}: {}", currentUserProfileState.getLeetcodeId(), e.getMessage());
+                                    return Mono.empty(); // Swallow the error so the rest of the users still get updated
+                                });
                     }
                     else{
                         return Mono.just(currentUserProfileState);
@@ -179,7 +186,10 @@ public class LeaderboardService {
             }
         }
 
-        ).subscribe();
+        ).subscribe(
+                null,
+                error -> log.error("Critical error during scheduled update loop", error)
+        );
     }
 
     public Mono<Boolean> isLeetcodeIdActive(){
@@ -187,6 +197,7 @@ public class LeaderboardService {
         return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
                 .map(Principal::getName)
                 .flatMap(appUserRepo::findByUsername)
+                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("AppUser not found in context")))
                 .map(AppUser::getLeetcodeId)
                 .flatMap(currentUserProfileStateRepo::findByLeetcodeId)
                         .map(CurrentUserProfileState::isActive)
@@ -225,16 +236,19 @@ public class LeaderboardService {
     }
     private Mono<AppUser> changeUserLeetcodeId(AppUser appUser, String newLeetcodeId){
         appUser.setLeetcodeId(newLeetcodeId);
-        return appUserRepo.save(appUser);
+        return appUserRepo.save(appUser)
+                .onErrorMap(DataAccessException.class, e ->
+                        new DatabaseOperationException("Failed to update AppUser in database", e));
     }
     @Transactional
     public Mono<String> updateLeetcodeIdUser(String newLeetcodeId){
         return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
                 .map(Principal::getName)
-                .flatMap(email-> this.verifyLeetcodeId(newLeetcodeId,email).filter(Boolean::booleanValue).switchIfEmpty(Mono.error(new RuntimeException("Leetcode Id not verified"))))
+                .flatMap(email-> this.verifyLeetcodeId(newLeetcodeId,email).filter(Boolean::booleanValue).switchIfEmpty(Mono.error(new LeetcodeIdNotVerifiedException())))
                 .then(ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication))
                 .map(Principal::getName)
                 .flatMap(appUserRepo::findByUsername)
+
                 .flatMap(appUser -> {
                     log.info("Update: {}",appUser);
                     return updateLeetId(appUser.getLeetcodeId(), newLeetcodeId).then(
@@ -242,11 +256,14 @@ public class LeaderboardService {
 
                     );
                 })
+                .doOnError(e -> log.error("Transaction failed during LeetCode ID update, initiating rollback. Reason: {}", e.getMessage()))
                 .flatMap(appUser -> Mono.just(jwtTokenProvider.createToken(appUser.getUsername(),appUser.getRole(), appUser.getLeetcodeId())));
     }
     public Mono<Void> changeIdiInLeetcodeUserIds(String oldLeetcodeId, String newLeetcodeId){
         LeetcodeUserId leetcodeUserId = new LeetcodeUserId(newLeetcodeId);
-        return leetcodeUserIdRepo.deleteById(oldLeetcodeId).then(leetcodeUserIdRepo.insertUser(leetcodeUserId));
+        return leetcodeUserIdRepo.deleteById(oldLeetcodeId).then(leetcodeUserIdRepo.insertUser(leetcodeUserId))
+                .onErrorMap(DataAccessException.class, e ->
+                        new DatabaseOperationException("Failed to swap old ID for new ID in leetcode_user_ids table", e));
     }
     public Mono<Void> updateLeetId(String oldLeetcodeId, String newLeetcodeId){
         log.info("Started updating leetcodeId");
@@ -260,56 +277,68 @@ public class LeaderboardService {
 
     }
     public Mono<Boolean> changeIdInCurrentState(String oldLeetcodeId, String newLeetcodeId){
-        return currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).flatMap(currentUserProfileState -> {
+        return currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId)
+                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+                .flatMap(currentUserProfileState -> {
             currentUserProfileState.setLeetcodeId(newLeetcodeId);
-            return currentUserProfileStateRepo.save(currentUserProfileState);
+            return currentUserProfileStateRepo.save(currentUserProfileState)
+                    .onErrorMap(DataAccessException.class, e ->
+                            new DatabaseOperationException("Database error while updating state table", e));
         }).map(currentUserProfileState -> {
             if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
                 return true;
             }
             else{
-                throw new RuntimeException();
-            }
+                throw new LeetcodeIdUpdateException("Failed to verify ID update for: " + newLeetcodeId);            }
         });
     }
 
     public Mono<Boolean> changeIdInDailyState(String oldLeetcodeId,String newLeetcodeId){
-        return dailyRepo.findByLeetcodeId(oldLeetcodeId).flatMap(dailyUserProfileState -> {
+        return dailyRepo.findByLeetcodeId(oldLeetcodeId)
+                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+                .flatMap(dailyUserProfileState -> {
             dailyUserProfileState.setLeetcodeId(newLeetcodeId);
-            return dailyRepo.save(dailyUserProfileState);
+            return dailyRepo.save(dailyUserProfileState)
+                    .onErrorMap(DataAccessException.class, e ->
+                            new DatabaseOperationException("Database error while updating state table", e));
         }).map(currentUserProfileState -> {
             if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
                 return true;
             }
             else{
-                throw new RuntimeException();
-            }
+                throw new LeetcodeIdUpdateException("Failed to verify ID update for: " + newLeetcodeId);            }
         });
     }
     public Mono<Boolean> changeIdInMonthlyState(String oldLeetcodeId,String newLeetcodeId){
-        return monthlyRepo.findByLeetcodeId(oldLeetcodeId).flatMap(monthlyUserProfileState -> {
+        return monthlyRepo.findByLeetcodeId(oldLeetcodeId)
+                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+                .flatMap(monthlyUserProfileState -> {
             monthlyUserProfileState.setLeetcodeId(newLeetcodeId);
-            return monthlyRepo.save(monthlyUserProfileState);
+            return monthlyRepo.save(monthlyUserProfileState)
+                    .onErrorMap(DataAccessException.class, e ->
+                            new DatabaseOperationException("Database error while updating state table", e));
         }).map(currentUserProfileState -> {
             if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
                 return true;
             }
             else{
-                throw new RuntimeException();
-            }
+                throw new LeetcodeIdUpdateException("Failed to verify ID update for: " + newLeetcodeId);            }
         });
     }
     public Mono<Boolean> changeIdInWeekly(String oldLeetcodeId,String newLeetcodeId){
-        return weeklyRepo.findByLeetcodeId(oldLeetcodeId).flatMap(weeklyUserProfileState -> {
+        return weeklyRepo.findByLeetcodeId(oldLeetcodeId)
+                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+                .flatMap(weeklyUserProfileState -> {
             weeklyUserProfileState.setLeetcodeId(newLeetcodeId);
-            return weeklyRepo.save(weeklyUserProfileState);
+            return weeklyRepo.save(weeklyUserProfileState)
+                    .onErrorMap(DataAccessException.class, e ->
+                            new DatabaseOperationException("Database error while updating state table", e));
         }).map(currentUserProfileState -> {
             if (currentUserProfileState.getLeetcodeId().equals(newLeetcodeId)){
                 return true;
             }
             else{
-                throw new RuntimeException();
-            }
+                throw new LeetcodeIdUpdateException("Failed to verify ID update for: " + newLeetcodeId);            }
         });
     }
 

@@ -11,6 +11,9 @@ import org.iecse.leetcodeleaderboard.security.dto.PendingRegistration;
 import org.iecse.leetcodeleaderboard.security.dto.SignupRequest;
 import org.iecse.leetcodeleaderboard.security.dto.UpdatePasswordRequest;
 import org.iecse.leetcodeleaderboard.security.entity.AppUser;
+import org.iecse.leetcodeleaderboard.security.exception.InvalidOTPException;
+import org.iecse.leetcodeleaderboard.security.exception.UserAlreadyExistsException;
+import org.iecse.leetcodeleaderboard.security.exception.UserNotFoundException;
 import org.iecse.leetcodeleaderboard.security.repo.AppUserRepository;
 import org.iecse.leetcodeleaderboard.service.LeaderboardService;
 import org.iecse.leetcodeleaderboard.service.MailService;
@@ -43,12 +46,14 @@ public class AppUserService {
             return repository.save(pendingRegistration.getAppUser());
         }
         else{
-            throw new RuntimeException("OTP Request didn't match");
+            return Mono.error(new InvalidOTPException("OTP Request didn't match"));
         }
     }
 
     public Mono<AppUser> updatePassword(UpdatePasswordRequest updatePasswordRequest){
-        return repository.findByUsername(updatePasswordRequest.getUsername()).map(appUser -> {
+        return repository.findByUsername(updatePasswordRequest.getUsername())
+                .switchIfEmpty(Mono.error(new UserNotFoundException("User not found")))
+                .map(appUser -> {
             appUser.setPassword(passwordEncoder.encode(updatePasswordRequest.getNewPassword()));
             return appUser;
         }).flatMap(repository::save);
@@ -57,7 +62,8 @@ public class AppUserService {
 
         int otpNum = secureRandom.nextInt(100000);
         String otp = String.format("%06d",otpNum);
-        return repository.findByUsername(email).switchIfEmpty(Mono.error(new RuntimeException("No user for this email")) )
+        return repository.findByUsername(email)
+                .switchIfEmpty(Mono.error(new UserNotFoundException("No user found for this email")))
                 .map(appUser ->{
                     PendingRegistration pendingRegistration = new PendingRegistration(appUser,otp);
                     appUser.setPassword(passwordEncoder.encode(newPassword));
@@ -72,7 +78,7 @@ public class AppUserService {
     public Mono<AppUser> registerUser(SignupRequest request) {
 
         return repository.findByUsername(request.getUsername())
-                .flatMap(existing -> Mono.<AppUser>error(new RuntimeException("User already exists")))
+                .flatMap(existing -> Mono.<AppUser>error(new UserAlreadyExistsException("User already exists")))
                 .switchIfEmpty(Mono.defer(() ->
                      leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername())
                              .flatMap(verified->{
