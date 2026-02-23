@@ -83,7 +83,8 @@ public class AppUserService {
                      leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername())
                              .flatMap(verified->{
                                  if (verified)
-                                    return leetcodeUserIdRepo.insertUser(new LeetcodeUserId(request.getLeetcodeId()));
+                                    return leetcodeUserIdRepo.insertUser(new LeetcodeUserId(request.getLeetcodeId()))
+                                            .thenReturn(true);
                                  else
                                      throw new RuntimeException();
 
@@ -100,7 +101,7 @@ public class AppUserService {
                                     PendingRegistration pendingRegistration = new PendingRegistration(newUser,otp);
                                     otpService.savePendingRegistration(request.getUsername(), pendingRegistration);
                                     mailService.sendPlainText(request.getUsername(), "LeetLead OTP","Your OTP is: "+ otp);
-                                    return Mono.just(newUser);
+                                return repository.save(newUser);
                             }
                     )
 

@@ -1,7 +1,4 @@
 package org.iecse.leetcodeleaderboard.exception;
-
-
-
 import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.dto.ErrorResponse;
 import org.iecse.leetcodeleaderboard.security.exception.InvalidOTPException;
@@ -73,5 +70,12 @@ public class GlobalExceptionHandler {
         return Mono.just(ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse(500, "Internal Server Error", "An unexpected error occurred")));
+    }
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public Mono<ResponseEntity<ErrorResponse>> handleBadCredentials(org.springframework.security.authentication.BadCredentialsException ex) {
+        log.warn("Authentication failed: {}", ex.getMessage());
+        return Mono.just(ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse(401, "Unauthorized", "Invalid username or password")));
     }
 }
