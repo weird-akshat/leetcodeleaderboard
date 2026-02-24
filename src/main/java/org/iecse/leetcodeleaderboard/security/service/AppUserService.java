@@ -4,7 +4,10 @@ package org.iecse.leetcodeleaderboard.security.service;
 import lombok.RequiredArgsConstructor;
 
 
+import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
+import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
+import org.iecse.leetcodeleaderboard.repo.CurrentUserProfileStateRepo;
 import org.iecse.leetcodeleaderboard.repo.LeetcodeUserIdRepo;
 import org.iecse.leetcodeleaderboard.security.dto.OtpRequest;
 import org.iecse.leetcodeleaderboard.security.dto.PendingRegistration;
@@ -25,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +40,7 @@ public class AppUserService {
     private final SecureRandom secureRandom;
     private final OtpService otpService;
     private final MailService mailService;
+    private final CurrentUserProfileStateRepo currentUserProfileStateRepo;
     public Mono<AppUser> findByUsername(String username) {
         return repository.findByUsername(username);
     }
@@ -84,6 +89,8 @@ public class AppUserService {
                              .flatMap(verified->{
                                  if (verified)
                                     return leetcodeUserIdRepo.insertUser(new LeetcodeUserId(request.getLeetcodeId()))
+                                            .then(leaderboardService.getIdData(request.getLeetcodeId()).map(UserDataMapper::toUserProfile)
+                                                    .flatMap(currentUserProfileStateRepo::save))
                                             .thenReturn(true);
                                  else
                                      throw new RuntimeException();
