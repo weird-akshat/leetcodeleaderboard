@@ -1,6 +1,7 @@
 package org.iecse.leetcodeleaderboard.security.service;
 
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
+import org.iecse.leetcodeleaderboard.repo.CurrentUserProfileStateRepo;
 import org.iecse.leetcodeleaderboard.repo.LeetcodeUserIdRepo;
 import org.iecse.leetcodeleaderboard.security.dto.OtpRequest;
 import org.iecse.leetcodeleaderboard.security.dto.PendingRegistration;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import reactor.core.publisher.Mono;
@@ -54,6 +56,9 @@ class AppUserServiceTest {
     @Mock
     private MailService mailService;
 
+    @Mock
+    private CurrentUserProfileStateRepo currentUserProfileStateRepo;
+
     private AppUserService service;
 
     @BeforeEach
@@ -65,7 +70,8 @@ class AppUserServiceTest {
                 passwordEncoder,
                 secureRandom,
                 otpService,
-                mailService
+                mailService,
+                currentUserProfileStateRepo
         );
     }
 
@@ -179,6 +185,7 @@ class AppUserServiceTest {
     }
 
     @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
     void registerUserShouldCreatePendingUserWhenValid() {
         SignupRequest request = new SignupRequest();
         request.setUsername("u@x.com");
@@ -197,11 +204,12 @@ class AppUserServiceTest {
         when(passwordEncoder.encode("pass")).thenReturn("encoded-pass");
         when(secureRandom.nextInt(100000)).thenReturn(12345);
 
-        // Return an object here so the next flatMap in your service actually runs
         when(leetcodeUserIdRepo.insertUser(any(LeetcodeUserId.class))).thenReturn(Mono.just(new LeetcodeUserId("lc-id")).then());
-
         when(repository.save(any(AppUser.class))).thenReturn(Mono.just(expectedSavedUser));
 
+        when(leaderboardService.getIdData(anyString()))
+                .thenReturn(Mono.just(Mockito.mock(org.iecse.leetcodeleaderboard.dto.UserData.class)));
+        when(currentUserProfileStateRepo.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
         StepVerifier.create(service.registerUser(request))
                 .assertNext(appUser -> {
                     assertThat(appUser.getUsername()).isEqualTo("u@x.com");
