@@ -32,10 +32,10 @@ public class AppStartupRunner implements CommandLineRunner {
 //        leaderboardService.getUserAboutMe("adityasinha347").doOnNext(System.out::println).subscribe() ;
 //         mailService.sendPlainText("thatweirdakshat@gmail.com","Hey"," well");
 //         leaderboardService.updateAllProfiles();
-//        leaderboardService.scheduledMonthlySync();
-//        leaderboardService.scheduledDailySync();
-//        leaderboardService.scheduledWeeklySync();
-//        leaderboardService.scheduledUpdate();
+        leaderboardService.scheduledMonthlySync();
+        leaderboardService.scheduledDailySync();
+        leaderboardService.scheduledWeeklySync();
+        leaderboardService.scheduledUpdate();
          return ;
 
 
