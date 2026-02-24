@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.repo.CurrentUserProfileStateRepo;
 import org.iecse.leetcodeleaderboard.repo.MonthlyUserProfileStateRepo;
+import org.iecse.leetcodeleaderboard.security.exception.UserNotFoundException;
 import org.iecse.leetcodeleaderboard.service.LeaderboardService;
 import org.iecse.leetcodeleaderboard.service.MailService;
 import org.springframework.boot.CommandLineRunner;
@@ -18,6 +19,11 @@ public class AppStartupRunner implements CommandLineRunner {
     private final MailService mailService;
     @Override
     public void run(String... args) throws Exception {
+//        leaderboardService.getUserAboutMe("its_akshat").doOnNext(abc-> log.info("{}",abc))
+//                .onErrorMap(throwable -> {
+//                    log.error("Failed to fetch data for user: {}", throwable.getMessage());
+//                    return new UserNotFoundException("Could not retrieve LeetCode profile for this user");
+//                }).subscribe();
 //        currentUserProfileStateRepo.findTopRanked(1,1.25,1.5).doOnNext(
 //                userProfile -> System.out.println(userProfile)
 //        ).subscribe();
