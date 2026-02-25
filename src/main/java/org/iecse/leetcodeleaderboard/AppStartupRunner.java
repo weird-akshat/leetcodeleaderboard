@@ -35,7 +35,8 @@ public class AppStartupRunner implements CommandLineRunner {
 //        leaderboardService.scheduledMonthlySync();
 //        leaderboardService.scheduledDailySync();
 //        leaderboardService.scheduledWeeklySync();
-        leaderboardService.scheduledUpdate();
+//        leaderboardService.scheduledUpdate();
+//        leaderboardService.getUserAboutMe("its_akshat").doOnNext(abc->log.info("{}",abc)).subscribe();
          return ;
 
 

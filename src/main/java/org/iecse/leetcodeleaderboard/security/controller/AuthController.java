@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -32,6 +33,7 @@ public class AuthController {
     }
     @PostMapping("/signup/otp")
     @ResponseStatus(HttpStatus.CREATED)
+
     public Mono<ResponseEntity<Boolean>> saveUser(@RequestBody OtpRequest request) {
         return userService.saveUser(request)
                 .map(appUser -> new ResponseEntity<>(HttpStatus.OK));

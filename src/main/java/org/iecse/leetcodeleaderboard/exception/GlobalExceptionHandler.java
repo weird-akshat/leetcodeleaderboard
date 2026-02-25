@@ -1,4 +1,5 @@
 package org.iecse.leetcodeleaderboard.exception;
+
 import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.dto.ErrorResponse;
 import org.iecse.leetcodeleaderboard.security.exception.InvalidOTPException;
@@ -31,7 +32,8 @@ public class GlobalExceptionHandler {
             LeetcodeIdUpdateException.class,
             LeetcodeIdChangedException.class,
             InvalidOTPException.class,
-            LeetcodeVerificationFailedException.class
+            LeetcodeVerificationFailedException.class,
+            LeetcodeIdInUseException.class
     })
     public Mono<ResponseEntity<ErrorResponse>> handleBadRequest(RuntimeException ex) {
         log.warn("Bad Request: {}", ex.getMessage());
@@ -64,18 +66,19 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(500, "Internal Server Error", "A database operation failed")));
     }
 
-    @ExceptionHandler(Exception.class)
-    public Mono<ResponseEntity<ErrorResponse>> handleGenericException(Exception ex) {
-        log.error("Unhandled Exception: {}", ex.getMessage(), ex);
-        return Mono.just(ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ErrorResponse(500, "Internal Server Error", "An unexpected error occurred")));
-    }
     @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleBadCredentials(org.springframework.security.authentication.BadCredentialsException ex) {
         log.warn("Authentication failed: {}", ex.getMessage());
         return Mono.just(ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse(401, "Unauthorized", "Invalid username or password")));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public Mono<ResponseEntity<ErrorResponse>> handleGenericException(Exception ex) {
+        log.error("Unhandled Exception: {}", ex.getMessage(), ex);
+        return Mono.just(ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ErrorResponse(500, "Internal Server Error", "An unexpected error occurred")));
     }
 }

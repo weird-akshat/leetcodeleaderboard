@@ -4,8 +4,10 @@ package org.iecse.leetcodeleaderboard.security.service;
 import lombok.RequiredArgsConstructor;
 
 
+import lombok.extern.slf4j.Slf4j;
 import org.iecse.leetcodeleaderboard.entity.CurrentUserProfileState;
 import org.iecse.leetcodeleaderboard.entity.LeetcodeUserId;
+import org.iecse.leetcodeleaderboard.exception.LeetcodeIdInUseException;
 import org.iecse.leetcodeleaderboard.mapper.UserDataMapper;
 import org.iecse.leetcodeleaderboard.repo.CurrentUserProfileStateRepo;
 import org.iecse.leetcodeleaderboard.repo.LeetcodeUserIdRepo;
@@ -24,6 +26,7 @@ import org.iecse.leetcodeleaderboard.service.OtpService;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
@@ -32,6 +35,7 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AppUserService {
     private final LeaderboardService leaderboardService;
     private final AppUserRepository repository;
@@ -44,11 +48,20 @@ public class AppUserService {
     public Mono<AppUser> findByUsername(String username) {
         return repository.findByUsername(username);
     }
+
+
     public Mono<AppUser> saveUser(OtpRequest otpRequest){
         PendingRegistration pendingRegistration = otpService.getPendingRegistration(otpRequest.getUsername());
         if (pendingRegistration.getOtp().equals(otpRequest.getOtp())){
             otpService.clearOtp(otpRequest.getUsername());
-            return repository.save(pendingRegistration.getAppUser());
+            return leetcodeUserIdRepo.insertUser(new LeetcodeUserId(pendingRegistration.getAppUser().getLeetcodeId()))
+                    .onErrorResume(ex->Mono.empty())
+
+                    .then(leaderboardService.getIdData(pendingRegistration.getAppUser().getLeetcodeId()).map(UserDataMapper::toUserProfile)
+                            .flatMap(currentUserProfileStateRepo::save))
+
+                    .onErrorResume(ex->Mono.empty())
+                    .then(Mono.defer(()->repository.save(pendingRegistration.getAppUser())));
         }
         else{
             return Mono.error(new InvalidOTPException("OTP Request didn't match"));
@@ -82,37 +95,31 @@ public class AppUserService {
     }
     public Mono<AppUser> registerUser(SignupRequest request) {
 
-        return repository.findByUsername(request.getUsername())
-                .flatMap(existing -> Mono.<AppUser>error(new UserAlreadyExistsException("User already exists")))
-                .switchIfEmpty(Mono.defer(() ->
-                     leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername())
-                             .flatMap(verified->{
-                                 if (verified)
-                                    return leetcodeUserIdRepo.insertUser(new LeetcodeUserId(request.getLeetcodeId()))
-                                            .then(leaderboardService.getIdData(request.getLeetcodeId()).map(UserDataMapper::toUserProfile)
-                                                    .flatMap(currentUserProfileStateRepo::save))
-                                            .thenReturn(true);
-                                 else
-                                     throw new RuntimeException();
-
-                             }).flatMap(
-                            verified-> {
-                                    AppUser newUser = new AppUser();
-                                    newUser.setUsername(request.getUsername());
-                                    newUser.setPassword(passwordEncoder.encode(request.getPassword()));
-                                    newUser.setLeetcodeId(request.getLeetcodeId());
-                                    newUser.setRole("ROLE_USER");
-                                    newUser.setActive(true);
-                                    int otpNum = secureRandom.nextInt(100000);
-                                    String otp = String.format("%06d",otpNum);
-                                    PendingRegistration pendingRegistration = new PendingRegistration(newUser,otp);
-                                    otpService.savePendingRegistration(request.getUsername(), pendingRegistration);
-                                    mailService.sendPlainText(request.getUsername(), "LeetLead OTP","Your OTP is: "+ otp);
-                                return repository.save(newUser);
-                            }
-                    )
+        return repository.findByLeetcodeId(request.getLeetcodeId()).flatMap(appUser -> Mono.<AppUser>error(new LeetcodeIdInUseException()))
+                .switchIfEmpty( repository.findByUsername(request.getUsername())
+                        .flatMap(existing -> Mono.<AppUser>error(new UserAlreadyExistsException("User already exists")))
+                        .switchIfEmpty(Mono.defer(() ->
+                                leaderboardService.verifyLeetcodeId(request.getLeetcodeId(), request.getUsername())
+                                        .flatMap(
+                                                verified-> {
+                                                    AppUser newUser = new AppUser();
+                                                    newUser.setUsername(request.getUsername());
+                                                    newUser.setPassword(passwordEncoder.encode(request.getPassword()));
+                                                    newUser.setLeetcodeId(request.getLeetcodeId());
+                                                    newUser.setRole("ROLE_USER");
+                                                    newUser.setActive(true);
+                                                    int otpNum = secureRandom.nextInt(100000);
+                                                    String otp = String.format("%06d",otpNum);
+                                                    PendingRegistration pendingRegistration = new PendingRegistration(newUser,otp);
+                                                    otpService.savePendingRegistration(request.getUsername(), pendingRegistration);
+                                                    mailService.sendPlainText(request.getUsername(), "LeetLead OTP","Your OTP is: "+ otp);
+                                                    return Mono.just(newUser);
+                                                }
+                                        )
 
 
-                ));
+                        )));
+
+
     }
 }

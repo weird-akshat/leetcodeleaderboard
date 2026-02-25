@@ -242,26 +242,32 @@ public class LeaderboardService {
     }
     @Transactional
     public Mono<String> updateLeetcodeIdUser(String newLeetcodeId){
-        return ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
-                .map(Principal::getName)
-                .flatMap(email-> this.verifyLeetcodeId(newLeetcodeId,email).filter(Boolean::booleanValue).switchIfEmpty(Mono.error(new LeetcodeIdNotVerifiedException())))
-                .then(ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication))
-                .map(Principal::getName)
-                .flatMap(appUserRepo::findByUsername)
+        return
+                appUserRepo.findByLeetcodeId(newLeetcodeId).flatMap(appUser -> Mono.<String>error(new LeetcodeIdInUseException()))
+                                .switchIfEmpty(
+                                        ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication)
+                                                .map(Principal::getName)
+                                                .flatMap(email-> this.verifyLeetcodeId(newLeetcodeId,email).filter(Boolean::booleanValue).switchIfEmpty(Mono.error(new LeetcodeIdNotVerifiedException())))
+                                                .then(ReactiveSecurityContextHolder.getContext().map(SecurityContext::getAuthentication))
+                                                .map(Principal::getName)
+                                                .flatMap(appUserRepo::findByUsername)
 
-                .flatMap(appUser -> {
-                    log.info("Update: {}",appUser);
-                    return updateLeetId(appUser.getLeetcodeId(), newLeetcodeId).then(
-                        Mono.defer(()->changeUserLeetcodeId(appUser,newLeetcodeId))
+                                                .flatMap(appUser -> {
+                                                    log.info("Update: {}",appUser);
+                                                    return updateLeetId(appUser.getLeetcodeId(), newLeetcodeId).then(
+                                                            Mono.defer(()->changeUserLeetcodeId(appUser,newLeetcodeId))
 
-                    );
-                })
-                .doOnError(e -> log.error("Transaction failed during LeetCode ID update, initiating rollback. Reason: {}", e.getMessage()))
-                .flatMap(appUser -> Mono.just(jwtTokenProvider.createToken(appUser.getUsername(),appUser.getRole(), appUser.getLeetcodeId())));
+                                                    );
+                                                }).flatMap(appUser -> Mono.just(jwtTokenProvider.createToken(appUser.getUsername(),appUser.getRole(), appUser.getLeetcodeId())))
+                                                .doOnError(e -> log.error("Transaction failed during LeetCode ID update, initiating rollback. Reason: {}", e.getMessage()))
+                                )
+
+                        ;
+
     }
     public Mono<Void> changeIdiInLeetcodeUserIds(String oldLeetcodeId, String newLeetcodeId){
         LeetcodeUserId leetcodeUserId = new LeetcodeUserId(newLeetcodeId);
-        return leetcodeUserIdRepo.deleteById(oldLeetcodeId).then(leetcodeUserIdRepo.insertUser(leetcodeUserId))
+        return leetcodeUserIdRepo.deleteById(oldLeetcodeId).onErrorResume(error->leetcodeUserIdRepo.insertUser(leetcodeUserId))
                 .onErrorMap(DataAccessException.class, e ->
                         new DatabaseOperationException("Failed to swap old ID for new ID in leetcode_user_ids table", e));
     }
@@ -277,8 +283,10 @@ public class LeaderboardService {
 
     }
     public Mono<Boolean> changeIdInCurrentState(String oldLeetcodeId, String newLeetcodeId){
-        return currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId)
-                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+        return currentUserProfileStateRepo.findByLeetcodeId(oldLeetcodeId).doOnNext(
+                abc->log.info("{}",abc)
+                )
+                .switchIfEmpty(Mono.empty())
                 .flatMap(currentUserProfileState -> {
             currentUserProfileState.setLeetcodeId(newLeetcodeId);
             return currentUserProfileStateRepo.save(currentUserProfileState)
@@ -295,7 +303,7 @@ public class LeaderboardService {
 
     public Mono<Boolean> changeIdInDailyState(String oldLeetcodeId,String newLeetcodeId){
         return dailyRepo.findByLeetcodeId(oldLeetcodeId)
-                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+                .switchIfEmpty(Mono.empty())
                 .flatMap(dailyUserProfileState -> {
             dailyUserProfileState.setLeetcodeId(newLeetcodeId);
             return dailyRepo.save(dailyUserProfileState)
@@ -311,7 +319,7 @@ public class LeaderboardService {
     }
     public Mono<Boolean> changeIdInMonthlyState(String oldLeetcodeId,String newLeetcodeId){
         return monthlyRepo.findByLeetcodeId(oldLeetcodeId)
-                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+                .switchIfEmpty(Mono.empty())
                 .flatMap(monthlyUserProfileState -> {
             monthlyUserProfileState.setLeetcodeId(newLeetcodeId);
             return monthlyRepo.save(monthlyUserProfileState)
@@ -327,7 +335,7 @@ public class LeaderboardService {
     }
     public Mono<Boolean> changeIdInWeekly(String oldLeetcodeId,String newLeetcodeId){
         return weeklyRepo.findByLeetcodeId(oldLeetcodeId)
-                .switchIfEmpty(Mono.error(new UserProfileNotFoundException("State not found for old ID: " + oldLeetcodeId)))
+                .switchIfEmpty(Mono.empty())
                 .flatMap(weeklyUserProfileState -> {
             weeklyUserProfileState.setLeetcodeId(newLeetcodeId);
             return weeklyRepo.save(weeklyUserProfileState)
