@@ -1,12 +1,14 @@
-FROM amazoncorretto:17-alpine
-# Step 2: Set the working directory inside the container
+# Stage 1: Build the JAR using Maven
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+RUN mvn clean package -DskipTests
 
-# Step 3: Copy the Spring Boot JAR file into the container
-COPY target/leetcodeleaderboard-0.0.1-SNAPSHOT.jar /app/leetcodeleaderboard.jar
-
-# Step 4: Expose the port your application runs on
+# Stage 2: Create the tiny runtime image
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+# We copy the JAR from the 'build' stage above, not from your local folder
+COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
-
-# Step 5: Define the command to run your Spring Boot application
-CMD ["java", "-jar", "/app/leetcodeleaderboard.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
