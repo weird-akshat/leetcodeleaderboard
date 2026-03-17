@@ -148,7 +148,7 @@ public class LeaderboardService {
         });
     }
 
-    @Scheduled(cron = "@hourly")
+    @Scheduled(cron = "@daily")
     public void scheduledUpdate() {
         log.info("Starting scheduled profile update...");
         updateAllProfiles();
